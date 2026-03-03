@@ -1,0 +1,369 @@
+---
+title: "Effect"
+description: "Effect class - a line of code that is executed before moving on to the next one"
+---
+
+## Overview
+
+The `Effect` abstract class represents a line of code that is executed sequentially. Effects extend `Statement` and provide a simplified execution model through the `execute()` method.
+
+**Package:** `io.github.syst3ms.skriptparser.lang`
+
+**Extends:** `Statement`
+
+## Class Hierarchy
+
+```
+SyntaxElement
+    └── Statement
+            └── Effect (abstract)
+```
+
+## Abstract Methods
+
+### execute()
+
+```java
+protected abstract void execute(TriggerContext ctx)
+```
+
+Executes the effect's logic. This method must be implemented by all effects.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context containing event data and local variables
+</ParamField>
+
+<Note>
+  This method is called by the `run()` implementation and should contain all the effect's execution logic.
+</Note>
+
+## Overridden Methods
+
+### run()
+
+```java
+@Override
+public boolean run(TriggerContext ctx)
+```
+
+Executes this effect by calling `execute()` and returns true to continue execution.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Always returns true, indicating execution should continue to the next statement
+</ResponseField>
+
+<Info>
+  Unlike `Statement.run()`, this implementation always returns true. Effects cannot interrupt the flow of execution.
+</Info>
+
+## Inherited from Statement
+
+### init()
+
+```java
+boolean init(Expression<?>[] expressions, int matchedPattern, ParseContext parseContext)
+```
+
+Initializes this effect with parsed expressions. Must be implemented.
+
+<ParamField path="expressions" type="Expression<?>[]">
+  An array of expressions passed to this syntax element
+</ParamField>
+
+<ParamField path="matchedPattern" type="int">
+  The index of the pattern that was successfully matched
+</ParamField>
+
+<ParamField path="parseContext" type="ParseContext">
+  Object containing additional parsing information (regex matches, parse marks)
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  True if initialization was successful, false otherwise
+</ResponseField>
+
+---
+
+### toString()
+
+```java
+String toString(TriggerContext ctx, boolean debug)
+```
+
+Returns a string representation of this effect.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ParamField path="debug" type="boolean">
+  Whether to show additional debug information
+</ParamField>
+
+<ResponseField name="return" type="String">
+  A string that resembles what is written in the script
+</ResponseField>
+
+---
+
+### setParent()
+
+```java
+Statement setParent(CodeSection section)
+```
+
+Sets the parent code section of this effect.
+
+<ParamField path="section" type="CodeSection">
+  The parent section
+</ParamField>
+
+<ResponseField name="return" type="Statement">
+  This statement (for method chaining)
+</ResponseField>
+
+---
+
+### setNext()
+
+```java
+Statement setNext(Statement next)
+```
+
+Sets the statement that follows this effect in the file.
+
+<ParamField path="next" type="Statement">
+  The following statement (can be null)
+</ParamField>
+
+<ResponseField name="return" type="Statement">
+  This statement (for method chaining)
+</ResponseField>
+
+---
+
+### getParent()
+
+```java
+Optional<? extends CodeSection> getParent()
+```
+
+Returns the parent section of this effect.
+
+<ResponseField name="return" type="Optional<? extends CodeSection>">
+  The parent section, or empty if this is a top-level statement
+</ResponseField>
+
+---
+
+### getNext()
+
+```java
+Optional<? extends Statement> getNext()
+```
+
+Returns the statement after this one.
+
+<ResponseField name="return" type="Optional<? extends Statement>">
+  The next statement, or the statement after the parent section, or empty if this is the last statement
+</ResponseField>
+
+---
+
+### walk()
+
+```java
+Optional<? extends Statement> walk(TriggerContext ctx)
+```
+
+Executes this effect and returns the next statement to execute.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends Statement>">
+  The next statement to execute, or empty if execution should stop
+</ResponseField>
+
+## Implementation Example
+
+Here's a complete implementation of a print effect:
+
+```java
+public class EffPrint extends Effect {
+    static {
+        Parser.getMainRegistration().addEffect(
+            EffPrint.class,
+            "print %strings% [to [the] console]"
+        );
+    }
+
+    private Expression<String> expression;
+
+    @Override
+    public boolean init(Expression<?>[] expressions, int matchedPattern, 
+                       ParseContext parseContext) {
+        expression = (Expression<String>) expressions[0];
+        return true;
+    }
+
+    @Override
+    protected void execute(TriggerContext ctx) {
+        for (String val : expression.getArray(ctx)) {
+            System.out.println(val);
+        }
+    }
+
+    @Override
+    public String toString(TriggerContext ctx, boolean debug) {
+        return "print " + expression.toString(ctx, debug);
+    }
+}
+```
+
+### Registration Example
+
+```java
+Parser.getMainRegistration()
+    .newEffect(EffPrint.class, "print %strings% [to [the] console]")
+    .name("Print")
+    .description("Prints text to the console")
+    .examples(
+        "print \"Hello World!\"",
+        "print {_values::*} to console"
+    )
+    .since("1.0.0")
+    .register();
+```
+
+## Common Effect Patterns
+
+### Simple Value Effect
+
+```java
+public class EffSimple extends Effect {
+    private Expression<?> value;
+    
+    @Override
+    public boolean init(Expression<?>[] expressions, int matchedPattern, 
+                       ParseContext parseContext) {
+        value = expressions[0];
+        return true;
+    }
+    
+    @Override
+    protected void execute(TriggerContext ctx) {
+        // Process the value
+        Object result = value.getSingle(ctx).orElse(null);
+        if (result != null) {
+            // Do something with the result
+        }
+    }
+}
+```
+
+### Multi-Pattern Effect
+
+```java
+public class EffMultiPattern extends Effect {
+    private Expression<?> expr;
+    private int pattern;
+    
+    @Override
+    public boolean init(Expression<?>[] expressions, int matchedPattern, 
+                       ParseContext parseContext) {
+        this.pattern = matchedPattern;
+        this.expr = expressions[0];
+        return true;
+    }
+    
+    @Override
+    protected void execute(TriggerContext ctx) {
+        switch (pattern) {
+            case 0:
+                // Handle first pattern
+                break;
+            case 1:
+                // Handle second pattern
+                break;
+        }
+    }
+}
+```
+
+### Validation Effect
+
+```java
+public class EffValidated extends Effect {
+    private Expression<Number> number;
+    
+    @Override
+    public boolean init(Expression<?>[] expressions, int matchedPattern, 
+                       ParseContext parseContext) {
+        number = (Expression<Number>) expressions[0];
+        
+        // Validate at parse time if possible
+        if (number instanceof Literal) {
+            Number n = ((Literal<Number>) number).getSingle().orElse(null);
+            if (n != null && n.intValue() < 0) {
+                parseContext.getLogger().error(
+                    "Number must be positive",
+                    ErrorType.SEMANTIC_ERROR
+                );
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    @Override
+    protected void execute(TriggerContext ctx) {
+        number.getSingle(ctx).ifPresent(n -> {
+            if (n.intValue() >= 0) {
+                // Process positive number
+            }
+        });
+    }
+}
+```
+
+## Built-in Effects
+
+The Skript Parser includes several built-in effects:
+
+- **EffPrint** - Prints text to console
+- **EffWait** - Waits for a duration
+- **EffReturn** - Returns a value from a function
+- **EffExit** - Exits the current trigger
+- **EffContinue** - Continues to next loop iteration
+- **EffChange** - Changes variable values
+- **EffAsync** - Executes code asynchronously
+
+## Best Practices
+
+<Tip>
+  **Keep effects simple**: Each effect should do one thing well. Complex logic should be split into multiple effects.
+</Tip>
+
+<Tip>
+  **Validate early**: Perform validation in `init()` when possible, especially for literal values.
+</Tip>
+
+<Tip>
+  **Handle null safely**: Always check for null values from expressions using `Optional` or null checks.
+</Tip>
+
+<Warning>
+  **Don't throw exceptions**: Effects should handle errors gracefully. Use logging instead of throwing exceptions.
+</Warning>
+
+## See Also
+
+- [Statement](/api/statements) - Base class for all runnable code
+- [Expression](/api/expressions) - For value-returning syntax elements
+- [CodeSection](/api/code-sections) - For sections containing multiple statements

@@ -1,0 +1,87 @@
+---
+title: Introduction
+description: A standalone Java implementation of the Skript language - flexible, maintainable, and platform-agnostic
+---
+
+# Welcome to Skript Parser
+
+Skript Parser is a **standalone Java implementation** of the Skript language, designed to be cleaner, more flexible, and easier to understand than the original Skript plugin. It provides a complete parsing and execution framework that can be embedded in any Java application.
+
+## What is Skript?
+
+Skript is a language originally created for Minecraft servers that makes scripting accessible to everyone. Even without programming experience, Skript code is highly readable:
+
+```vba
+on right click on dirt:
+    if the player is holding seeds:
+        set the clicked block to grass
+    else if the player is holding any mushroom:
+        set the clicked block to mycelium
+```
+
+This natural syntax makes it perfect for rapid prototyping and accessible scripting.
+
+## Why Skript Parser?
+
+The original Skript plugin had some limitations:
+- Tightly coupled with the Spigot/Minecraft API
+- Difficult to maintain and extend
+- Only usable within Minecraft servers
+- Complex, tangled codebase
+
+Skript Parser addresses these issues by providing:
+
+<CardGroup cols={2}>
+  <Card title="Platform Independence" icon="cube">
+    Use Skript in any Java application - not just Minecraft servers. Build CLI tools, desktop apps, or embed it in your own projects.
+  </Card>
+  <Card title="Clean Architecture" icon="code">
+    Redesigned from the ground up with maintainability in mind. Clear separation of concerns and elegant control flow.
+  </Card>
+  <Card title="Extensible API" icon="puzzle-piece">
+    Easy-to-use registration system for adding custom syntax, types, events, and effects. Build addons with minimal friction.
+  </Card>
+  <Card title="Better Parsing" icon="bolt">
+    Improved parsing engine with better error messages, tips, and debugging capabilities. Faster and more efficient.
+  </Card>
+</CardGroup>
+
+## Project Goals
+
+The main aim of this project is to provide a **better, easier to understand, and more flexible implementation** of the Skript language. This means:
+
+- **Standalone library**: Can be used in any Java environment
+- **Improved API**: Cleaner interfaces for registering syntax and handling events
+- **Better documentation**: Comprehensive guides and API references
+- **Modern practices**: Uses current Java features and best practices
+
+## Quick Links
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Get started by adding Skript Parser to your project via Maven or Gradle
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Build your first Skript parser in minutes with our quick start guide
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/parser">
+    Explore the complete API documentation
+  </Card>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/SkriptDev/skript-parser">
+    View the source code and contribute to the project
+  </Card>
+</CardGroup>
+
+## Related Projects
+
+- **[skript-cli](https://github.com/SkriptLang/skript-cli)**: A command-line implementation demonstrating how Skript Parser can be used outside of Minecraft
+- **Original Skript Plugin**: The original Minecraft plugin that inspired this project
+
+## Requirements
+
+- **Java 25 or higher**: This library requires Java 25+
+- **Build tools**: Maven or Gradle for dependency management
+
+<Note>
+  This project is actively maintained and welcomes contributions! Whether you're fixing bugs, adding features, or improving documentation, your help is appreciated.
+</Note>

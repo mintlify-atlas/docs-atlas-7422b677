@@ -1,0 +1,645 @@
+---
+title: SkriptRegistration
+description: Register syntax elements, types, converters, and other components for your Skript addon
+---
+
+## Overview
+
+The `SkriptRegistration` class is a mutable object that tracks all syntax and types registered by a `SkriptAddon`. It provides a fluent API for registering expressions, effects, sections, events, types, converters, and more.
+
+<Warning>
+  Don't forget to call `register()` after adding all your syntax elements!
+</Warning>
+
+## Class Definition
+
+```java
+public class SkriptRegistration
+```
+
+**Package:** `io.github.syst3ms.skriptparser.registration`
+
+## Constructors
+
+### SkriptRegistration(SkriptAddon)
+
+```java
+public SkriptRegistration(SkriptAddon registerer)
+```
+
+Construct a SkriptRegistration around a SkriptAddon.
+
+<ParamField path="registerer" type="SkriptAddon" required>
+  The SkriptAddon that this SkriptRegistration will reference
+</ParamField>
+
+### SkriptRegistration(SkriptAddon, SkriptLogger)
+
+```java
+public SkriptRegistration(SkriptAddon registerer, SkriptLogger logger)
+```
+
+Construct a SkriptRegistration with a custom logger.
+
+<ParamField path="registerer" type="SkriptAddon" required>
+  The SkriptAddon that this SkriptRegistration will reference
+</ParamField>
+
+<ParamField path="logger" type="SkriptLogger" required>
+  The SkriptLogger to use during registration
+</ParamField>
+
+## Expression Registration
+
+### newExpression
+
+```java
+public <C extends Expression<T>, T> ExpressionRegistrar<C, T> newExpression(
+    Class<C> c,
+    Class<T> returnType,
+    boolean isSingle,
+    String... patterns
+)
+```
+
+Starts a registration process for an Expression using the builder pattern.
+
+<ParamField path="c" type="Class<C>" required>
+  The Expression's class
+</ParamField>
+
+<ParamField path="returnType" type="Class<T>" required>
+  The Expression's return type
+</ParamField>
+
+<ParamField path="isSingle" type="boolean" required>
+  Whether the Expression returns a single value
+</ParamField>
+
+<ParamField path="patterns" type="String..." required>
+  The Expression's patterns
+</ParamField>
+
+**Returns:** An `ExpressionRegistrar` to continue the registration process
+
+### addExpression (simple)
+
+```java
+public <C extends Expression<T>, T> void addExpression(
+    Class<C> c,
+    Class<T> returnType,
+    String... patterns
+)
+```
+
+Registers an Expression with `isSingle` set to true by default.
+
+### addExpression (with isSingle)
+
+```java
+public <C extends Expression<T>, T> void addExpression(
+    Class<C> c,
+    Class<T> returnType,
+    boolean isSingle,
+    String... patterns
+)
+```
+
+Registers an Expression with custom single/plural setting.
+
+### addExpression (with priority)
+
+```java
+public <C extends Expression<T>, T> void addExpression(
+    Class<C> c,
+    Class<T> returnType,
+    boolean isSingle,
+    int priority,
+    String... patterns
+)
+```
+
+Registers an Expression with custom parsing priority.
+
+<ParamField path="priority" type="int" required>
+  The parsing priority (default: 5, lower number = lower priority)
+</ParamField>
+
+## Property Expression Registration
+
+### newPropertyExpression
+
+```java
+public <C extends PropertyExpression<?, T>, T> ExpressionRegistrar<C, T> newPropertyExpression(
+    Class<C> c,
+    Class<T> returnType,
+    String property,
+    String owner
+)
+```
+
+Starts registration for a PropertyExpression.
+
+<ParamField path="property" type="String" required>
+  The property name (e.g., "size", "name")
+</ParamField>
+
+<ParamField path="owner" type="String" required>
+  The owner pattern (e.g., "%strings%", "%players%")
+</ParamField>
+
+### addPropertyExpression
+
+```java
+public <C extends PropertyExpression<?, T>, T> void addPropertyExpression(
+    Class<C> c,
+    Class<T> returnType,
+    String property,
+    String owner
+)
+```
+
+Registers a PropertyExpression.
+
+## Property Conditional Registration
+
+### newPropertyConditional
+
+```java
+public <C extends PropertyConditional<?>> ExpressionRegistrar<C, Boolean> newPropertyConditional(
+    Class<C> c,
+    String performer,
+    ConditionalType conditionalType,
+    String property
+)
+```
+
+Starts registration for a PropertyConditional.
+
+<ParamField path="performer" type="String" required>
+  The performer pattern (e.g., "%players%")
+</ParamField>
+
+<ParamField path="conditionalType" type="ConditionalType" required>
+  The verb type (e.g., CAN, HAS, IS)
+</ParamField>
+
+<ParamField path="property" type="String" required>
+  The property being checked
+</ParamField>
+
+### addPropertyConditional
+
+```java
+public <C extends PropertyConditional<?>> void addPropertyConditional(
+    Class<C> c,
+    String performer,
+    ConditionalType conditionalType,
+    String property
+)
+```
+
+Registers a PropertyConditional.
+
+## Effect Registration
+
+### newEffect
+
+```java
+public <C extends Effect> EffectRegistrar<C> newEffect(
+    Class<C> c,
+    String... patterns
+)
+```
+
+Starts registration for an Effect.
+
+### addEffect
+
+```java
+public <C extends Effect> void addEffect(
+    Class<C> c,
+    String... patterns
+)
+```
+
+Registers an Effect.
+
+### addEffect (with priority)
+
+```java
+public <C extends Effect> void addEffect(
+    Class<C> c,
+    int priority,
+    String... patterns
+)
+```
+
+Registers an Effect with custom priority.
+
+## Section Registration
+
+### newSection
+
+```java
+public <C extends CodeSection> SectionRegistrar<C> newSection(
+    Class<C> c,
+    String... patterns
+)
+```
+
+Starts registration for a CodeSection.
+
+### addSection
+
+```java
+public void addSection(
+    Class<? extends CodeSection> c,
+    String... patterns
+)
+```
+
+Registers a CodeSection.
+
+## Event Registration
+
+### newEvent
+
+```java
+public <E extends SkriptEvent> EventRegistrar<E> newEvent(
+    Class<E> c,
+    String... patterns
+)
+```
+
+Starts registration for a SkriptEvent.
+
+### addEvent
+
+```java
+public void addEvent(
+    Class<? extends SkriptEvent> c,
+    Class<? extends TriggerContext>[] handledContexts,
+    String... patterns
+)
+```
+
+Registers a SkriptEvent.
+
+<ParamField path="handledContexts" type="Class<? extends TriggerContext>[]" required>
+  The TriggerContexts this event can handle
+</ParamField>
+
+## Structure Registration
+
+### newStructure
+
+```java
+public <S extends Structure> StructureRegistrar<S> newStructure(
+    Class<S> c,
+    String... patterns
+)
+```
+
+Starts registration for a Structure.
+
+## Context Value Registration
+
+### newSingleContextValue
+
+```java
+public <C extends TriggerContext, T> ContextValueRegistrar<C, T> newSingleContextValue(
+    Class<C> context,
+    Class<T> returnType,
+    String pattern,
+    Function<C, T> function
+)
+```
+
+Starts registration for a context value that returns a single value.
+
+### newListContextValue
+
+```java
+public <C extends TriggerContext, T> ContextValueRegistrar<C, T> newListContextValue(
+    Class<C> context,
+    Class<T> returnType,
+    String pattern,
+    Function<C, T[]> function
+)
+```
+
+Starts registration for a context value that returns multiple values.
+
+### addSingleContextValue
+
+```java
+public <C extends TriggerContext, T> void addSingleContextValue(
+    Class<C> context,
+    Class<T> returnType,
+    String pattern,
+    Function<C, T> function
+)
+```
+
+Registers a single-value context value.
+
+### addListContextValue
+
+```java
+public <C extends TriggerContext, T> void addListContextValue(
+    Class<C> context,
+    Class<T> returnType,
+    String pattern,
+    Function<C, T[]> function
+)
+```
+
+Registers a list-value context value.
+
+### addContextType
+
+```java
+public <C extends TriggerContext, T> void addContextType(
+    Class<C> context,
+    Class<T> returnType,
+    Function<C, T> function
+)
+```
+
+Registers a context value using the type's base name as the pattern.
+
+## Type Registration
+
+### newType
+
+```java
+public <T> TypeRegistrar<T> newType(
+    Class<T> c,
+    String name,
+    String pattern
+)
+```
+
+Starts registration for a Type.
+
+<ParamField path="name" type="String" required>
+  The internal name of the type
+</ParamField>
+
+<ParamField path="pattern" type="String" required>
+  The pattern used to match this type in scripts
+</ParamField>
+
+### addType
+
+```java
+public <T> void addType(
+    Class<T> c,
+    String name,
+    String pattern
+)
+```
+
+Registers a Type.
+
+## Converter Registration
+
+### addConverter
+
+```java
+public <F, T> void addConverter(
+    Class<F> from,
+    Class<T> to,
+    Function<? super F, Optional<? extends T>> converter
+)
+```
+
+Registers a converter between two types.
+
+<ParamField path="from" type="Class<F>" required>
+  The source type
+</ParamField>
+
+<ParamField path="to" type="Class<T>" required>
+  The destination type
+</ParamField>
+
+<ParamField path="converter" type="Function" required>
+  Function that converts from F to Optional of T
+</ParamField>
+
+### addConverter (with options)
+
+```java
+public <F, T> void addConverter(
+    Class<F> from,
+    Class<T> to,
+    Function<? super F, Optional<? extends T>> converter,
+    int options
+)
+```
+
+Registers a converter with options.
+
+<ParamField path="options" type="int" required>
+  Converter options (see Converters class)
+</ParamField>
+
+## Function Registration
+
+### newJavaFunction
+
+```java
+public <T> FunctionRegistrar<T> newJavaFunction(
+    String functionName,
+    Class<T> returnType,
+    boolean isSingle
+)
+```
+
+Starts registration for a Java function.
+
+## Tag Registration
+
+### addTag
+
+```java
+public void addTag(Class<? extends Tag> c)
+```
+
+Registers a Tag with default priority.
+
+### addTag (with priority)
+
+```java
+public void addTag(Class<? extends Tag> c, int priority)
+```
+
+Registers a Tag with custom priority.
+
+## Registration Finalization
+
+### register
+
+```java
+public List<LogEntry> register()
+```
+
+Adds all currently registered syntaxes to Skript's usable database. This method MUST be called after registering all syntax elements.
+
+**Returns:** List of errors, warnings, and other logs that occurred during pattern parsing
+
+### register (ignore logs)
+
+```java
+public List<LogEntry> register(boolean ignoreLogs)
+```
+
+Registers all syntax, optionally ignoring logs.
+
+<ParamField path="ignoreLogs" type="boolean" required>
+  Whether to ignore and clear logs instead of returning them
+</ParamField>
+
+## Utility Methods
+
+### getRegisterer
+
+```java
+public SkriptAddon getRegisterer()
+```
+
+Returns the addon handling this registration.
+
+### getLogger
+
+```java
+public SkriptLogger getLogger()
+```
+
+Returns the logger used during registration.
+
+### onFinishRegistration
+
+```java
+public void onFinishRegistration(Consumer<SkriptAddon> consumer)
+```
+
+Add a consumer to be called when registration finishes.
+
+## Getter Methods
+
+Access currently registered elements:
+
+- `getExpressions()` - Returns `MultiMap<Class<?>, ExpressionInfo<?, ?>>`
+- `getEffects()` - Returns `List<SyntaxInfo<? extends Effect>>`
+- `getSections()` - Returns `List<SyntaxInfo<? extends CodeSection>>`
+- `getEvents()` - Returns `List<SkriptEventInfo<?>>`
+- `getStructures()` - Returns `List<StructureInfo<?>>`
+- `getFunctions()` - Returns `List<FunctionRegistrar<?>>`
+- `getTypes()` - Returns `List<Type<?>>`
+- `getConverters()` - Returns `List<ConverterInfo<?, ?>>`
+- `getContextValues()` - Returns `List<ContextValue<?, ?>>`
+- `getTags()` - Returns `List<TagInfo<?>>`
+
+## Complete Example
+
+```java
+public class MyAddon extends SkriptAddon {
+    private final SkriptRegistration registration;
+    
+    public MyAddon() {
+        super("MyAddon");
+        registration = new SkriptRegistration(this);
+        
+        // Register a type
+        registration.newType(CustomObject.class, "customobject", "custom object[s]")
+            .toStringFunction(obj -> obj.getName())
+            .literalParser(str -> CustomObject.parse(str))
+            .register();
+        
+        // Register an expression
+        registration.newExpression(
+                CustomExpression.class,
+                String.class,
+                true,
+                "custom value of %customobject%"
+            )
+            .setPriority(5)
+            .register();
+        
+        // Register an effect
+        registration.addEffect(
+            CustomEffect.class,
+            "do something with %customobject%"
+        );
+        
+        // Register a converter
+        registration.addConverter(
+            CustomObject.class,
+            String.class,
+            obj -> Optional.of(obj.toString())
+        );
+        
+        // Register an event
+        registration.newEvent(CustomEvent.class, "custom event")
+            .setHandledContexts(CustomContext.class)
+            .register();
+        
+        // Finalize registration
+        List<LogEntry> logs = registration.register();
+        
+        // Handle any errors
+        for (LogEntry log : logs) {
+            if (log.getType() == ErrorType.ERROR) {
+                System.err.println("Registration error: " + log.getMessage());
+            }
+        }
+    }
+    
+    @Override
+    public SkriptRegistration getSkriptRegistration() {
+        return registration;
+    }
+}
+```
+
+## Builder Pattern Example
+
+```java
+// Using the builder pattern for complex registration
+registration.newExpression(
+        PlayerHealthExpression.class,
+        Number.class,
+        true,
+        "health of %players%",
+        "%players%'[s] health"
+    )
+    .setPriority(3)
+    .addData("canModify", true)
+    .register();
+
+// Property expression with builder
+registration.newPropertyExpression(
+        ItemNameProperty.class,
+        String.class,
+        "name",
+        "%itemstacks%"
+    )
+    .setPriority(4)
+    .register();
+```
+
+## Best Practices
+
+1. **Always call register()**: Don't forget to call `register()` after adding all syntax elements
+2. **Use builders for complex syntax**: The builder pattern provides better control and readability
+3. **Handle registration logs**: Check for errors in the returned `LogEntry` list
+4. **Set appropriate priorities**: Lower priority syntax should have higher numbers (default is 5)
+5. **Register types first**: Always register types before expressions that use them
+
+## See Also
+
+- [SkriptAddon](/api/skript-addon) - Create custom addons
+- [SyntaxManager](/api/syntax-manager) - Access registered syntax

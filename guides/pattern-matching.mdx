@@ -1,0 +1,510 @@
+---
+title: Advanced Pattern Matching
+description: Master the pattern system with detailed element reference and complex pattern techniques
+---
+
+Skript Parser uses a sophisticated pattern matching system to parse syntax. This guide covers the pattern parser, all pattern elements, and advanced techniques.
+
+## Pattern Parser Overview
+
+The `PatternParser` class (`io.github.syst3ms.skriptparser.pattern.PatternParser`) converts string patterns into structured `PatternElement` objects that the parser uses to match user input.
+
+```java
+public class PatternParser {
+    public static Optional<? extends PatternElement> parsePattern(
+        String pattern, 
+        SkriptLogger logger
+    );
+}
+```
+
+## Pattern Elements
+
+All pattern elements implement the `PatternElement` interface:
+
+```java
+public interface PatternElement {
+    int match(String s, int index, MatchContext context);
+}
+```
+
+### Element Types
+
+<Accordion title="TextElement - Plain Text">
+  **Description**: Matches literal text exactly (case-insensitive).
+
+  **Pattern Syntax**: Any text not in special characters
+
+  **Examples**:
+  ```
+  send message           → TextElement("send message")
+  broadcast              → TextElement("broadcast")
+  hello world            → TextElement("hello world")
+  ```
+
+  **Escaping**: Use `\` to escape special characters:
+  ```
+  \[literal bracket\]    → TextElement("[literal bracket]")
+  50\% discount          → TextElement("50% discount")
+  ```
+
+  **Priority**: 5 (highest)
+</Accordion>
+
+<Accordion title="ExpressionElement - Type Placeholders">
+  **Description**: Matches expressions/values of specific types.
+
+  **Pattern Syntax**: `%[flags]type[/type2...]%`
+
+  **Flags**:
+  - `*` = Literals only (`%*string%`)
+  - `~` = Expressions only, no literals (`%~object%`)
+  - `^` = Variables only (`%^objects%`)
+  - `-` = Nullable, can be null (`%-player%`)
+  - `=` = Accept conditionals (`%=boolean%`)
+
+  **Examples**:
+  ```java
+  %string%               → Any string expression
+  %*number%              → Number literal only (e.g., 5, 3.14)
+  %~object%              → Expression only, not literal
+  %^players%             → Variable only
+  %-string%              → Nullable string
+  %=boolean%             → Boolean or conditional
+  %string/number%        → String OR number
+  ```
+
+  **From `ExpressionElement.java:34-45`**:
+  ```java
+  public class ExpressionElement implements PatternElement {
+      private final List<PatternType<?>> types;
+      private final Acceptance acceptance;  // ALL, EXPRESSIONS_ONLY, etc.
+      private final boolean nullable;
+      private final boolean acceptsConditional;
+  }
+  ```
+
+  **Priority**: 2
+</Accordion>
+
+<Accordion title="ChoiceGroup - Alternatives">
+  **Description**: Matches one of several alternatives.
+
+  **Pattern Syntax**: `(choice1|choice2|choice3)`
+
+  **Examples**:
+  ```java
+  (send|give)                    → "send" OR "give"
+  (broadcast|announce)           → "broadcast" OR "announce"
+  (the|a|an)                     → "the", "a", or "an"
+  ```
+
+  **With Parse Marks**:
+  ```java
+  (add:add|remove:remove)        → Mark 0 for "add", mark 1 for "remove"
+  :(first|second):text           → Marked choices
+  ```
+
+  **From `ChoiceGroup.java:12-28`**:
+  ```java
+  public class ChoiceGroup implements PatternElement {
+      private final List<ChoiceElement> choices;
+      
+      @Override
+      public int match(String s, int index, MatchContext context) {
+          for (var choice : choices) {
+              var branch = context.branch(choice.getElement());
+              var m = choice.getElement().match(s, index, branch);
+              if (m != -1) {
+                  context.merge(branch);
+                  if (choice.getMark() != null)
+                      context.addMark(choice.getMark());
+                  return m;
+              }
+          }
+          return -1;
+      }
+  }
+  ```
+
+  **Priority**: Minimum priority of all choices
+</Accordion>
+
+<Accordion title="OptionalGroup - Optional Parts">
+  **Description**: Matches optionally, continues even if not matched.
+
+  **Pattern Syntax**: `[optional text]`
+
+  **Examples**:
+  ```java
+  [the] player               → "player" or "the player"
+  send [message]             → "send" or "send message"
+  [quickly] teleport         → "teleport" or "quickly teleport"
+  ```
+
+  **Nested Optionals**:
+  ```java
+  [[the] player['s]] name    → "name", "player name", "the player's name"
+  ```
+
+  **From `OptionalGroup.java:8-36`**:
+  ```java
+  public class OptionalGroup implements PatternElement {
+      private final PatternElement element;
+      
+      @Override
+      public int match(String s, int index, MatchContext context) {
+          var branch = context.branch(element);
+          var m = element.match(s, index, branch);
+          context.merge(branch);
+          return m != -1 ? m : index;  // Returns index if no match
+      }
+  }
+  ```
+
+  **Priority**: Based on inner element
+</Accordion>
+
+<Accordion title="RegexGroup - Regular Expressions">
+  **Description**: Matches using Java regex patterns.
+
+  **Pattern Syntax**: `<regex>`
+
+  **Examples**:
+  ```java
+  <[a-z]+>                   → One or more lowercase letters
+  <\\d{1,3}>                  → 1 to 3 digits
+  <[A-Z][a-z]*>              → Capitalized word
+  <(true|false)>             → "true" or "false"
+  ```
+
+  **From `PatternParser.java:172-195`**:
+  ```java
+  if (c == '<') {
+      var s = StringUtils.getEnclosedText(pattern, '<', '>', i);
+      if (s.isEmpty()) {
+          logger.error("Unmatched angle bracket...", ErrorType.MALFORMED_INPUT);
+          return Optional.empty();
+      }
+      
+      Pattern pat;
+      try {
+          pat = Pattern.compile(s.get());
+      } catch (PatternSyntaxException e) {
+          logger.error("Invalid regex pattern: '" + s.get() + "'", 
+              ErrorType.MALFORMED_INPUT);
+          return Optional.empty();
+      }
+      elements.add(new RegexGroup(pat));
+  }
+  ```
+
+  <Warning>
+    Invalid regex causes registration failure. Always test your patterns!
+  </Warning>
+
+  **Priority**: 1 (lowest)
+</Accordion>
+
+<Accordion title="CompoundElement - Multiple Elements">
+  **Description**: A sequence of pattern elements.
+
+  **Created Automatically**: When a pattern has multiple parts.
+
+  **Example Pattern**:
+  ```
+  "send %string% to %player%"
+  ```
+  
+  Becomes:
+  ```java
+  CompoundElement([
+      TextElement("send "),
+      ExpressionElement(String.class),
+      TextElement(" to "),
+      ExpressionElement(Player.class)
+  ])
+  ```
+
+  **Priority**: Based on first non-optional element
+</Accordion>
+
+## Advanced Pattern Techniques
+
+### Parse Marks
+
+Parse marks identify which choice was matched:
+
+```java
+registration.addEffect(
+    EffModify.class,
+    "(add:add|remove:remove) %object% (to|from) %objects%"
+);
+
+// In your effect class:
+@Override
+public boolean init(Expression<?>[] exprs, int matchedPattern, ParseResult parseResult) {
+    boolean isAdd = parseResult.hasTag("add");      // true if "add"
+    boolean isRemove = parseResult.hasTag("remove"); // true if "remove"
+    return true;
+}
+```
+
+**Multiple Marks**:
+```java
+"(set:set|add:add|remove:remove) [mode:(raw|formatted)] %string%"
+
+// Check:
+boolean isSet = parseResult.hasTag("set");
+boolean isFormatted = parseResult.hasTag("formatted");
+```
+
+### Optional Choice Groups
+
+```java
+"send [message] [(to:to|in:in)] %players%"
+
+// Matches:
+// - "send player"
+// - "send message player"
+// - "send to player"
+// - "send message to player"
+// - "send in player"
+```
+
+### Type Unions
+
+Multiple type options in one placeholder:
+
+```java
+"give %number/string% to %player%"
+
+// Accepts:
+// - give 5 to player
+// - give "diamond" to player
+```
+
+### Complex Nested Patterns
+
+```java
+"[(1:quickly|2:slowly)] [teleport] %entity% [to] [(at:at|to:to)] %location%"
+
+// Matches all of:
+// - "player location"
+// - "quickly teleport player to location"
+// - "slowly player at location"
+// - "teleport player at location"
+```
+
+## Pattern Best Practices
+
+<Steps>
+  <Step title="Start with Required Text">
+    Begin patterns with non-optional text for clarity:
+
+    **Good**:
+    ```
+    send [message] %string%
+    ```
+
+    **Avoid**:
+    ```
+    [send] [message] %string%  // Too ambiguous
+    ```
+  </Step>
+
+  <Step title="Use Specific Types">
+    Prefer specific types over generic ones:
+
+    **Good**:
+    ```
+    teleport %player% to %location%
+    ```
+
+    **Avoid**:
+    ```
+    teleport %object% to %object%  // Too generic
+    ```
+  </Step>
+
+  <Step title="Avoid Ambiguous Patterns">
+    Don't create patterns that can match the same input:
+
+    **Bad**:
+    ```
+    // These conflict:
+    "set %object% to %object%"
+    "set %string% to %string%"
+    ```
+
+    Use parse marks or different text:
+    ```
+    "(str:set string|obj:set object) %object% to %object%"
+    ```
+  </Step>
+
+  <Step title="Order Choices by Specificity">
+    Put more specific choices first:
+
+    **Good**:
+    ```
+    (remove all|remove|delete)
+    ```
+
+    **Avoid**:
+    ```
+    (remove|remove all|delete)  // "remove all" never matches
+    ```
+  </Step>
+</Steps>
+
+## Pattern Validation
+
+The parser validates patterns at registration. Common errors:
+
+### Unmatched Brackets
+
+```java
+"send [message to %player%"  // ERROR: Missing ]
+"(add|remove %object%"       // ERROR: Missing )
+"<[a-z]+ test"               // ERROR: Missing >
+```
+
+### Invalid Regex
+
+```java
+"match <[a-z>"               // ERROR: Unclosed character class
+"test <(?!>"                 // ERROR: Unclosed group
+```
+
+### Unknown Types
+
+```java
+"give %unknowntype%"         // ERROR: Type not registered
+```
+
+### Malformed Expression Elements
+
+```java
+"%"                          // ERROR: Empty type
+"%string"                    // ERROR: Missing closing %
+"string%"                    // ERROR: Missing opening %
+```
+
+## Pattern Element Reference Table
+
+| Element | Syntax | Priority | Description |
+|---------|--------|----------|--------------|
+| TextElement | `text` | 5 | Literal text |
+| ExpressionElement | `%type%` | 2 | Type placeholder |
+| OptionalGroup | `[text]` | * | Optional part |
+| ChoiceGroup | `(a\|b)` | ** | Alternatives |
+| RegexGroup | `<regex>` | 1 | Regex match |
+| CompoundElement | Auto | *** | Sequence |
+
+\* = Based on inner element  
+\*\* = Min of all choices  
+\*\*\* = Based on first element
+
+## Real-World Pattern Examples
+
+From the actual source code:
+
+### Property Expression Pattern
+
+```java
+// From PropertyExpression.java - generates two patterns:
+public static String[] composePatterns(String property, String owner) {
+    return new String[] {
+        "[the] " + property + " of %" + owner + "%",
+        "%" + owner + "%'s " + property
+    };
+}
+
+// Usage:
+"name", "player" 
+// Becomes:
+// - "[the] name of %player%"
+// - "%player%'s name"
+```
+
+### Conditional Property Pattern
+
+```java
+// From PropertyConditional.java:
+public static String[] composePatterns(
+    String performer, 
+    ConditionalType type, 
+    String property
+) {
+    return new String[] {
+        "%" + performer + "% " + type.getVerbName() + " " + property
+    };
+}
+
+// Usage:
+"player", ConditionalType.BE, "flying"
+// Becomes: "%player% (is|are|am) flying"
+```
+
+## Pattern Matching Algorithm
+
+From `ExpressionElement.java:48-153`, the matching process:
+
+1. **Find possible delimiters** - Look ahead for what could come after
+2. **Try each delimiter** - Split input at each possibility
+3. **Parse expression** - Try to parse the substring
+4. **Validate** - Check acceptance flags (literal/expression/variable)
+5. **Return match** - If successful, return position
+
+```java
+@Override
+public int match(String s, int index, MatchContext context) {
+    // Get what could come after this expression
+    var possibleInputs = PatternElement.getPossibleInputs(
+        flattened.subList(possibilityIndex + 1, flattened.size())
+    );
+    
+    for (var possibleInput : possibleInputs) {
+        if (possibleInput instanceof TextElement) {
+            var text = ((TextElement) possibleInput).getText();
+            var i = StringUtils.indexOfIgnoreCase(s, text, index);
+            while (i != -1) {
+                var toParse = s.substring(index, i).strip();
+                var expression = parse(toParse, typeArray, 
+                    context.getParserState(), logger);
+                if (expression.isPresent()) {
+                    context.addExpression(expression.get());
+                    return index + toParse.length();
+                }
+                i = StringUtils.indexOfIgnoreCase(s, text, i + 1);
+            }
+        }
+    }
+    return -1;
+}
+```
+
+## Debugging Patterns
+
+Enable verbose logging:
+
+```java
+import io.github.syst3ms.skriptparser.log.SkriptLogger;
+
+SkriptLogger logger = new SkriptLogger();
+SkriptRegistration registration = new SkriptRegistration(addon, logger);
+
+// ... register syntax ...
+
+List<LogEntry> logs = registration.register();
+for (LogEntry log : logs) {
+    System.out.println(log.getType() + ": " + log.getMessage());
+}
+```
+
+## Next Steps
+
+- Practice with [registering syntax](/guides/registering-syntax)
+- Create [custom types](/guides/custom-types)
+- Build [addons](/guides/creating-addons)

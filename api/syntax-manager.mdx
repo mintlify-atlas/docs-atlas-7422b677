@@ -1,0 +1,348 @@
+---
+title: SyntaxManager
+description: Static utility class for accessing and querying registered syntax elements
+---
+
+## Overview
+
+The `SyntaxManager` class provides static methods for accessing all registered syntax elements including expressions, effects, sections, and events. It maintains a global registry of all syntax registered through `SkriptRegistration`.
+
+<Info>
+  This class is primarily used internally by the parser, but can be useful for introspection and tooling.
+</Info>
+
+## Class Definition
+
+```java
+public class SyntaxManager
+```
+
+**Package:** `io.github.syst3ms.skriptparser.registration`
+
+## Constants
+
+### INFO_COMPARATOR
+
+```java
+public static final Comparator<? super SyntaxInfo<?>> INFO_COMPARATOR
+```
+
+The ordering that describes the order in which syntaxes should be tested during parsing. This comparator sorts syntax by:
+
+1. **Priority** (descending): Higher priority syntax is tested first
+2. **Pattern count** (descending): Syntax with more patterns is tested first when priorities are equal
+
+## Static Methods
+
+### getAllExpressions
+
+```java
+public static List<ExpressionInfo<?, ?>> getAllExpressions()
+```
+
+Returns a list of all currently registered expressions, sorted by the `INFO_COMPARATOR`.
+
+**Returns:** List of all registered `ExpressionInfo` objects, sorted by priority and pattern count
+
+**Example:**
+```java
+List<ExpressionInfo<?, ?>> allExpressions = SyntaxManager.getAllExpressions();
+for (ExpressionInfo<?, ?> info : allExpressions) {
+    System.out.println("Expression: " + info.getSyntaxClass().getName());
+    System.out.println("Priority: " + info.getPriority());
+    System.out.println("Patterns: " + info.getPatterns().size());
+}
+```
+
+### getExpressionExact
+
+```java
+public static <E extends Expression<T>, T> Optional<? extends ExpressionInfo<E, T>> getExpressionExact(
+    Expression<T> expr
+)
+```
+
+Finds the `ExpressionInfo` corresponding to a given expression instance by matching the source class.
+
+<ParamField path="expr" type="Expression<T>" required>
+  The expression instance to look up
+</ParamField>
+
+**Returns:** Optional containing the matching `ExpressionInfo`, or empty if not found
+
+**Example:**
+```java
+Expression<String> myExpression = // ... some expression instance
+Optional<? extends ExpressionInfo<?, String>> info = 
+    SyntaxManager.getExpressionExact(myExpression);
+
+info.ifPresent(i -> {
+    System.out.println("Found expression: " + i.getSyntaxClass().getName());
+});
+```
+
+### getEffects
+
+```java
+public static List<SyntaxInfo<? extends Effect>> getEffects()
+```
+
+Returns a list of all currently registered effects.
+
+**Returns:** List of all registered effect `SyntaxInfo` objects
+
+**Example:**
+```java
+List<SyntaxInfo<? extends Effect>> effects = SyntaxManager.getEffects();
+System.out.println("Total effects registered: " + effects.size());
+```
+
+### getSections
+
+```java
+public static List<SyntaxInfo<? extends CodeSection>> getSections()
+```
+
+Returns a list of all currently registered code sections.
+
+**Returns:** List of all registered section `SyntaxInfo` objects
+
+**Example:**
+```java
+List<SyntaxInfo<? extends CodeSection>> sections = SyntaxManager.getSections();
+for (SyntaxInfo<? extends CodeSection> info : sections) {
+    System.out.println("Section: " + info.getSyntaxClass().getSimpleName());
+}
+```
+
+### getTriggers
+
+```java
+public static List<SkriptEventInfo<?>> getTriggers()
+```
+
+Returns a list of all currently registered triggers (both events and structures).
+
+**Returns:** List of all registered `SkriptEventInfo` objects
+
+**Example:**
+```java
+List<SkriptEventInfo<?>> triggers = SyntaxManager.getTriggers();
+System.out.println("Total triggers: " + triggers.size());
+```
+
+## Usage Examples
+
+### Listing All Registered Syntax
+
+```java
+public class SyntaxInspector {
+    public static void printAllSyntax() {
+        // Print all expressions
+        System.out.println("=== EXPRESSIONS ===");
+        SyntaxManager.getAllExpressions().forEach(info -> {
+            System.out.println(info.getSyntaxClass().getSimpleName());
+            info.getPatterns().forEach(pattern -> 
+                System.out.println("  - " + pattern)
+            );
+        });
+        
+        // Print all effects
+        System.out.println("\n=== EFFECTS ===");
+        SyntaxManager.getEffects().forEach(info -> {
+            System.out.println(info.getSyntaxClass().getSimpleName());
+        });
+        
+        // Print all sections
+        System.out.println("\n=== SECTIONS ===");
+        SyntaxManager.getSections().forEach(info -> {
+            System.out.println(info.getSyntaxClass().getSimpleName());
+        });
+        
+        // Print all triggers
+        System.out.println("\n=== TRIGGERS ===");
+        SyntaxManager.getTriggers().forEach(info -> {
+            System.out.println(info.getSyntaxClass().getSimpleName());
+        });
+    }
+}
+```
+
+### Finding Expression Information
+
+```java
+public class ExpressionLookup {
+    public static void findExpressionInfo(Expression<?> expr) {
+        Optional<? extends ExpressionInfo<?, ?>> infoOpt = 
+            SyntaxManager.getExpressionExact(expr);
+        
+        if (infoOpt.isPresent()) {
+            ExpressionInfo<?, ?> info = infoOpt.get();
+            System.out.println("Class: " + info.getSyntaxClass().getName());
+            System.out.println("Return Type: " + info.getReturnType().getBaseName());
+            System.out.println("Is Single: " + info.isSingle());
+            System.out.println("Priority: " + info.getPriority());
+            System.out.println("Patterns:");
+            info.getPatterns().forEach(p -> System.out.println("  " + p));
+        } else {
+            System.out.println("Expression not found in registry");
+        }
+    }
+}
+```
+
+### Generating Documentation
+
+```java
+public class DocumentationGenerator {
+    public static void generateExpressionDocs() {
+        List<ExpressionInfo<?, ?>> expressions = SyntaxManager.getAllExpressions();
+        
+        for (ExpressionInfo<?, ?> info : expressions) {
+            String name = info.getSyntaxClass().getSimpleName();
+            String returnType = info.getReturnType().getBaseName();
+            int patternCount = info.getPatterns().size();
+            
+            System.out.println("## " + name);
+            System.out.println("**Return Type:** " + returnType);
+            System.out.println("**Patterns:** " + patternCount);
+            System.out.println();
+            
+            System.out.println("### Syntax");
+            info.getPatterns().forEach(pattern -> {
+                System.out.println("- `" + pattern + "`");
+            });
+            System.out.println();
+        }
+    }
+}
+```
+
+### Filtering Syntax by Priority
+
+```java
+public class PriorityFilter {
+    public static List<ExpressionInfo<?, ?>> getHighPriorityExpressions(int minPriority) {
+        return SyntaxManager.getAllExpressions()
+            .stream()
+            .filter(info -> info.getPriority() >= minPriority)
+            .collect(Collectors.toList());
+    }
+    
+    public static void main(String[] args) {
+        List<ExpressionInfo<?, ?>> highPriority = getHighPriorityExpressions(7);
+        System.out.println("High priority expressions: " + highPriority.size());
+    }
+}
+```
+
+### Counting Registered Syntax
+
+```java
+public class SyntaxStats {
+    public static void printStatistics() {
+        int expressionCount = SyntaxManager.getAllExpressions().size();
+        int effectCount = SyntaxManager.getEffects().size();
+        int sectionCount = SyntaxManager.getSections().size();
+        int triggerCount = SyntaxManager.getTriggers().size();
+        
+        System.out.println("Syntax Registry Statistics:");
+        System.out.println("  Expressions: " + expressionCount);
+        System.out.println("  Effects: " + effectCount);
+        System.out.println("  Sections: " + sectionCount);
+        System.out.println("  Triggers: " + triggerCount);
+        System.out.println("  Total: " + 
+            (expressionCount + effectCount + sectionCount + triggerCount));
+    }
+}
+```
+
+## Advanced Usage
+
+### Custom Syntax Analyzer
+
+```java
+public class SyntaxAnalyzer {
+    /**
+     * Analyzes pattern complexity across all expressions
+     */
+    public static void analyzePatternComplexity() {
+        Map<Integer, Long> complexityDistribution = 
+            SyntaxManager.getAllExpressions()
+                .stream()
+                .collect(Collectors.groupingBy(
+                    info -> info.getPatterns().size(),
+                    Collectors.counting()
+                ));
+        
+        System.out.println("Pattern Count Distribution:");
+        complexityDistribution.forEach((count, frequency) -> 
+            System.out.println(count + " patterns: " + frequency + " expressions")
+        );
+    }
+    
+    /**
+     * Finds expressions with duplicate patterns
+     */
+    public static void findDuplicatePatterns() {
+        Map<String, List<ExpressionInfo<?, ?>>> patternMap = new HashMap<>();
+        
+        for (ExpressionInfo<?, ?> info : SyntaxManager.getAllExpressions()) {
+            for (var pattern : info.getPatterns()) {
+                String patternStr = pattern.toString();
+                patternMap.computeIfAbsent(patternStr, k -> new ArrayList<>())
+                    .add(info);
+            }
+        }
+        
+        System.out.println("Duplicate Patterns:");
+        patternMap.forEach((pattern, infos) -> {
+            if (infos.size() > 1) {
+                System.out.println("Pattern: " + pattern);
+                infos.forEach(info -> 
+                    System.out.println("  - " + info.getSyntaxClass().getName())
+                );
+            }
+        });
+    }
+}
+```
+
+## Internal Registration
+
+While you typically don't call `SyntaxManager` methods directly, understanding how it works internally is useful:
+
+```java
+// This is called internally by SkriptRegistration.register()
+static void register(SkriptRegistration reg) {
+    // Adds and sorts effects
+    effects.addAll(reg.getEffects());
+    effects.sort(INFO_COMPARATOR);
+    
+    // Adds and sorts sections
+    sections.addAll(reg.getSections());
+    sections.sort(INFO_COMPARATOR);
+    
+    // Adds and sorts triggers (events + structures)
+    triggers.addAll(reg.getEvents());
+    triggers.addAll(reg.getStructures());
+    triggers.sort(INFO_COMPARATOR);
+    
+    // Adds expressions
+    for (var entry : reg.getExpressions().entrySet()) {
+        expressions.putOne(entry.getKey(), entry.getValue());
+    }
+}
+```
+
+## Best Practices
+
+1. **Read-Only Access**: `SyntaxManager` is for querying, not modifying. Use `SkriptRegistration` to add syntax
+2. **Performance**: The lists are sorted on registration, so accessing them is efficient
+3. **Introspection**: Use for debugging, documentation generation, and IDE tooling
+4. **Thread Safety**: Be aware that the registry can be modified during registration
+
+## See Also
+
+- [SkriptRegistration](/api/skript-registration) - Register new syntax
+- [SkriptAddon](/api/skript-addon) - Create custom addons

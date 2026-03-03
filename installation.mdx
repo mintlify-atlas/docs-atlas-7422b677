@@ -1,0 +1,159 @@
+---
+title: Installation
+description: Add Skript Parser to your Java project using Maven, Gradle, or JitPack
+---
+
+# Installation
+
+Skript Parser is distributed as a Java library that you can add to your project using Maven or Gradle. The library is available through JitPack.
+
+## Prerequisites
+
+<Note>
+  **Java 25 or higher is required**. This library uses modern Java features and will not work with older versions.
+</Note>
+
+Before installing Skript Parser, ensure you have:
+
+- Java Development Kit (JDK) 25 or higher installed
+- Maven or Gradle configured in your project
+- A Java project ready to integrate Skript Parser
+
+## Installation via JitPack
+
+Skript Parser is available through JitPack, which provides easy access to GitHub releases.
+
+### Step 1: Add the JitPack Repository
+
+<CodeGroup>
+```xml Maven
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+```
+
+```kotlin Gradle (Kotlin DSL)
+repositories {
+    maven { url = uri("https://jitpack.io") }
+}
+```
+
+```groovy Gradle (Groovy DSL)
+repositories {
+    maven { url 'https://jitpack.io' }
+}
+```
+</CodeGroup>
+
+### Step 2: Add the Dependency
+
+Add Skript Parser as a dependency to your project. The current version is `1.0.11`.
+
+<CodeGroup>
+```xml Maven
+<dependencies>
+    <dependency>
+        <groupId>com.github.SkriptDev</groupId>
+        <artifactId>skript-parser</artifactId>
+        <version>1.0.11</version>
+    </dependency>
+</dependencies>
+```
+
+```kotlin Gradle (Kotlin DSL)
+dependencies {
+    implementation("com.github.SkriptDev:skript-parser:1.0.11")
+}
+```
+
+```groovy Gradle (Groovy DSL)
+dependencies {
+    implementation 'com.github.SkriptDev:skript-parser:1.0.11'
+}
+```
+</CodeGroup>
+
+<Warning>
+  Always use the latest stable version. Check the [GitHub releases page](https://github.com/SkriptDev/skript-parser/releases) for the most recent version.
+</Warning>
+
+## Configure Java Version
+
+Ensure your build configuration targets Java 25 or higher.
+
+<CodeGroup>
+```xml Maven
+<properties>
+    <maven.compiler.source>25</maven.compiler.source>
+    <maven.compiler.target>25</maven.compiler.target>
+</properties>
+```
+
+```kotlin Gradle (Kotlin DSL)
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
+}
+```
+
+```groovy Gradle (Groovy DSL)
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+```
+</CodeGroup>
+
+## Included Dependencies
+
+Skript Parser includes the following dependencies automatically:
+
+- **JetBrains Annotations** (15.0): For enhanced IDE support and null-safety annotations
+- **JSR-305** (3.0.2): Additional annotations for code quality
+- **Gson** (2.13.2): JSON serialization support for types
+
+You don't need to add these manually - they're included transitively.
+
+## Verify Installation
+
+After adding the dependency, verify that Skript Parser is correctly installed:
+
+<Steps>
+  <Step title="Build your project">
+    Run your build tool to download the dependency:
+    
+    ```bash Maven
+    mvn clean install
+    ```
+    
+    ```bash Gradle
+    ./gradlew build
+    ```
+  </Step>
+  
+  <Step title="Import the Parser class">
+    Try importing the main Parser class in your code:
+    
+    ```java
+    import io.github.syst3ms.skriptparser.Parser;
+    import io.github.syst3ms.skriptparser.registration.SkriptRegistration;
+    ```
+  </Step>
+  
+  <Step title="Check for compilation errors">
+    If the imports resolve successfully and your project compiles, the installation is complete!
+  </Step>
+</Steps>
+
+## Next Steps
+
+Now that you have Skript Parser installed, proceed to the [Quick Start Guide](/quickstart) to create your first parser and load your first script.
+
+<Card title="Quick Start" icon="rocket" href="/quickstart">
+  Learn how to initialize the parser and run your first Skript file
+</Card>

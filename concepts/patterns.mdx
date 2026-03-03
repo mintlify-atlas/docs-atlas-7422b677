@@ -1,0 +1,478 @@
+---
+title: Pattern System
+description: How patterns work for syntax matching and parsing
+---
+
+## Overview
+
+The pattern system is the core mechanism for matching user input against registered syntaxes. Patterns define how syntax elements should be written and what components they contain.
+
+## PatternElement Interface
+
+Location: `io.github.syst3ms.skriptparser.pattern.PatternElement`
+
+**The superclass of all elements of a pattern.**
+
+```java
+public interface PatternElement {
+    /**
+     * Attempts to match the PatternElement to a string 
+     * at a specified index.
+     * 
+     * @param s the string to match this PatternElement against
+     * @param index the index of the string at which this 
+     *              PatternElement should be matched
+     * @param context the match context
+     * @return the index at which matching should continue 
+     *         afterwards if successful. Otherwise, -1
+     */
+    int match(String s, int index, MatchContext context);
+}
+```
+
+<Note>
+The `match()` method returns the next index to continue matching from, or `-1` if the match fails.
+</Note>
+
+## Pattern Element Types
+
+Patterns are composed of different element types, each serving a specific purpose:
+
+### TextElement
+
+Location: `io.github.syst3ms.skriptparser.pattern.TextElement`
+
+**Text inside of a pattern. Is case and whitespace insensitive.**
+
+```java
+public class TextElement implements PatternElement {
+    private final String text;
+
+    public TextElement(String text) {
+        this.text = text;
+    }
+
+    @Override
+    public int match(String s, int index, MatchContext context) {
+        if (text.isEmpty())
+            return index;
+            
+        var start = 0;
+        if (Character.isWhitespace(text.charAt(0))) {
+            while (index + start < s.length() && 
+                   Character.isWhitespace(s.charAt(index + start)))
+                start++;
+        }
+        
+        var stripped = text.strip();
+        
+        if (s.regionMatches(true, index + start, stripped, 
+                           0, stripped.length())) {
+            // Match successful
+            return index + start + stripped.length();
+        } else {
+            return -1;
+        }
+    }
+}
+```
+
+<Info>
+TextElement matching is **case-insensitive** and **whitespace-flexible**, making patterns more forgiving for users.
+</Info>
+
+### ExpressionElement
+
+Location: `io.github.syst3ms.skriptparser.pattern.ExpressionElement`
+
+**A variable/expression, declared in syntax using `%type%`**
+
+ExpressionElement has several components:
+
+```java
+public class ExpressionElement implements PatternElement {
+    private final List<PatternType<?>> types;
+    private final Acceptance acceptance;
+    private final boolean nullable;
+    private final boolean acceptsConditional;
+
+    public enum Acceptance {
+        ALL,              // %type%
+        EXPRESSIONS_ONLY, // %~type%
+        LITERALS_ONLY,    // %*type%
+        VARIABLES_ONLY    // %^type%
+    }
+}
+```
+
+#### Expression Flags
+
+<Accordion title="Expression Element Syntax">
+  **`%type%`** - Accepts any expression of the given type
+  
+  **`%-type%`** - Nullable (won't use default value if expression is null)
+  
+  **`%~type%`** - Expressions only (no literals)
+  
+  **`%*type%`** - Literals only (no dynamic expressions)
+  
+  **`%^type%`** - Variables only
+  
+  **`%=boolean%`** - Accepts conditional expressions
+  
+  **`%type1/type2%`** - Accepts multiple types (union type)
+</Accordion>
+
+#### Matching Logic
+
+ExpressionElement matching is complex, as it needs to determine where the expression ends:
+
+```java
+@Override
+public int match(String s, int index, MatchContext context) {
+    // Look at what could possibly be after the expression
+    var possibleInputs = PatternElement.getPossibleInputs(
+        flattened.subList(possibilityIndex + 1, flattened.size())
+    );
+    
+    for (var possibleInput : possibleInputs) {
+        if (possibleInput instanceof TextElement) {
+            var text = ((TextElement) possibleInput).getText();
+            
+            if (text.equals("\0")) { // End of line
+                var toParse = s.substring(index).strip();
+                var expression = parse(toParse, typeArray, 
+                                      parserState, logger);
+                if (expression.isPresent()) {
+                    context.addExpression(expression.get());
+                    return index + toParse.length();
+                }
+            }
+            
+            // Find the text in the input
+            var i = StringUtils.indexOfIgnoreCase(s, text, index);
+            while (i != -1) {
+                var toParse = s.substring(index, i).strip();
+                var expression = parse(toParse, typeArray, 
+                                      parserState, logger);
+                if (expression.isPresent()) {
+                    context.addExpression(expression.get());
+                    return index + toParse.length();
+                }
+                i = StringUtils.indexOfIgnoreCase(s, text, i + 1);
+            }
+        }
+    }
+    return -1;
+}
+```
+
+<Warning>
+Expression matching is greedy but tries multiple possibilities to find valid expressions. This can be computationally expensive for complex patterns.
+</Warning>
+
+### ChoiceGroup
+
+Location: `io.github.syst3ms.skriptparser.pattern.ChoiceGroup`
+
+**Represents choices in a pattern using `(choice1|choice2|choice3)` syntax.**
+
+Example patterns:
+- `(set|change|add|remove)` - Matches any one of the choices
+- `(first|1st)` - Alternative representations
+
+### OptionalGroup
+
+Location: `io.github.syst3ms.skriptparser.pattern.OptionalGroup`
+
+**Represents optional text using `[optional]` syntax.**
+
+Example patterns:
+- `print %string% [to [the] console]` - The "to the console" part is optional
+- `[the] player` - "the" is optional
+
+### RegexGroup
+
+Location: `io.github.syst3ms.skriptparser.pattern.RegexGroup`
+
+**Matches using regular expressions with `<regex>` syntax.**
+
+Example patterns:
+- `<\d+>` - Matches one or more digits
+- `<[a-zA-Z_][a-zA-Z0-9_]*>` - Matches valid identifier names
+
+```java
+public class RegexGroup implements PatternElement {
+    private final Pattern pattern;
+
+    public RegexGroup(Pattern pattern) {
+        this.pattern = pattern;
+    }
+
+    public Pattern getPattern() {
+        return pattern;
+    }
+}
+```
+
+### CompoundElement
+
+Location: `io.github.syst3ms.skriptparser.pattern.CompoundElement`
+
+**Combines multiple pattern elements into a sequence.**
+
+Example: The pattern `print %string% to console` is internally represented as:
+- TextElement("print")
+- ExpressionElement(String)
+- TextElement("to console")
+
+## PatternParser
+
+Location: `io.github.syst3ms.skriptparser.pattern.PatternParser`
+
+**A class for parsing syntaxes in string form into parser-usable objects.**
+
+```java
+public class PatternParser {
+    /**
+     * Parses a pattern and returns a PatternElement.
+     */
+    public static Optional<? extends PatternElement> parsePattern(
+        String pattern, 
+        SkriptLogger logger
+    )
+}
+```
+
+### Parsing Process
+
+The PatternParser converts pattern strings into PatternElement trees:
+
+```java
+private static Optional<? extends PatternElement> parsePattern(
+    String pattern, 
+    SkriptLogger logger, 
+    boolean marked
+) {
+    if (pattern.isEmpty())
+        return Optional.of(new TextElement(""));
+
+    List<PatternElement> elements = new ArrayList<>();
+    var textBuilder = new StringBuilder();
+    
+    var chars = pattern.toCharArray();
+    for (var i = 0; i < chars.length; i++) {
+        char c = chars[i];
+        
+        if (c == '[') {
+            // Parse optional group
+            var s = StringUtils.getEnclosedText(pattern, '[', ']', i);
+            // ...
+            optionalGroup = parsePattern(s.get(), logger)
+                .map(OptionalGroup::new);
+            elements.add(optionalGroup.get());
+            
+        } else if (c == '(') {
+            // Parse choice group
+            var s = StringUtils.getEnclosedText(pattern, '(', ')', i);
+            var choices = StringUtils.splitVerticalBars(s.get(), logger);
+            // ...
+            elements.add(new ChoiceGroup(choiceElements));
+            
+        } else if (c == '<') {
+            // Parse regex group
+            var s = StringUtils.getEnclosedText(pattern, '<', '>', i);
+            Pattern pat = Pattern.compile(s.get());
+            elements.add(new RegexGroup(pat));
+            
+        } else if (c == '%') {
+            // Parse expression element
+            var nextIndex = pattern.indexOf('%', i + 1);
+            var s = pattern.substring(i + 1, nextIndex);
+            // Parse type, flags, etc.
+            elements.add(new ExpressionElement(
+                patternTypes, acceptance, nullable, acceptConditional
+            ));
+            
+        } else if (c == '\\') {
+            // Escape character
+            textBuilder.append(chars[++i]);
+            
+        } else {
+            textBuilder.append(c);
+        }
+    }
+    
+    return Optional.of(new CompoundElement(elements));
+}
+```
+
+<Note>
+The backslash `\` can be used to escape special characters in patterns.
+</Note>
+
+## Pattern Matching Example
+
+Let's trace how the pattern `print %string% [to [the] console]` matches the input "print \"hello\" to console":
+
+1. **TextElement("print")** matches "print" → index advances to 6
+2. **ExpressionElement(String)** looks ahead and finds "to" as the next element
+3. It extracts "\"hello\"" and parses it as a string expression → index advances to 14
+4. **OptionalGroup** containing **TextElement("to the console")** matches "to console" → index advances to end
+5. **Match successful!** All elements matched
+
+```mermaid
+graph LR
+    A["print \"hello\" to console"] --> B[TextElement: 'print']
+    B --> C[ExpressionElement: String]
+    C --> D[OptionalGroup: 'to console']
+    D --> E[Match Complete]
+```
+
+## Parse Marks
+
+Parse marks allow capturing specific parts of the matched pattern:
+
+```java
+private static final Pattern PARSE_MARK_PATTERN = 
+    Pattern.compile("(([A-Za-z0-9]+)?):(.*)");
+```
+
+Example: `(mark:option1|mark2:option2)` allows the code to distinguish which option was matched.
+
+## Utility Methods
+
+### Getting Keywords
+
+```java
+/**
+ * Returns all text components that will always be present,
+ * no matter how the pattern is used.
+ */
+static List<String> getKeywords(PatternElement element) {
+    return flatten(element).stream()
+        .filter(el -> el instanceof TextElement)
+        .map(el -> ((TextElement) el).getText()
+                     .strip()
+                     .toLowerCase())
+        .collect(Collectors.toList());
+}
+```
+
+<Info>
+Keywords are used for syntax optimization - the parser can quickly filter out syntaxes that can't possibly match based on keywords.
+</Info>
+
+### Getting Possible Inputs
+
+```java
+static List<PatternElement> getPossibleInputs(
+    List<PatternElement> elements
+) {
+    List<PatternElement> possibilities = new ArrayList<>();
+    
+    for (var element : elements) {
+        if (element instanceof TextElement || 
+            element instanceof RegexGroup) {
+            possibilities.add(element);
+            return possibilities;
+        } else if (element instanceof ChoiceGroup) {
+            for (var choice : ((ChoiceGroup) element).getChoices()) {
+                var possibleInputs = getPossibleInputs(
+                    flatten(choice.getElement())
+                );
+                possibilities.addAll(possibleInputs);
+            }
+            return possibilities;
+        } else if (element instanceof OptionalGroup) {
+            // Keep looking past optional elements
+            continue;
+        }
+    }
+    
+    return possibilities;
+}
+```
+
+This method determines what text could follow an expression element, which is crucial for expression boundary detection.
+
+## Pattern Examples
+
+### Simple Patterns
+
+| Pattern | Matches | Doesn't Match |
+|---------|---------|---------------|
+| `print %string%` | print "hello" | print 5 |
+| `set %object% to %object%` | set {x} to 5 | set 5 |
+| `[the] player` | player, the player | a player |
+
+### Complex Patterns
+
+```java
+// Arithmetic operators with multiple patterns
+"%number%[ ]+[ ]%number%"   // 5 + 3
+"%number%[ ]-[ ]%number%"   // 5 - 3
+"%number%[ ]*[ ]%number%"   // 5 * 3
+"%number%[ ]/[ ]%number%"   // 5 / 3
+"%number%[ ]^[ ]%number%"   // 5 ^ 3
+
+// Change effect with choices
+"(add|give) %objects% to %objects%"
+"(remove|subtract) %objects% from %objects%"
+"(set|change) %object% to %object%"
+"delete %objects%"
+"reset %objects%"
+
+// Loop with optional parts
+"loop %objects%[ in [the] reverse (direction|order)]:"
+```
+
+<Accordion title="Advanced Pattern Techniques">
+  **Multiple Types**: `%string/number%` accepts either strings or numbers
+  
+  **Nested Groups**: `[from [the] (start|beginning)]` - optional text with choices inside
+  
+  **Regex Groups**: `variable <[a-zA-Z_][a-zA-Z0-9_]*>` - validate identifiers
+  
+  **Conditional Expressions**: `if %=boolean%:` - special syntax for conditions
+  
+  **Parse Marks**: `(mark1:text1|mark2:text2)` - distinguish which option matched
+</Accordion>
+
+## Error Handling
+
+The PatternParser validates patterns during registration and reports errors:
+
+```java
+if (s.isEmpty()) {
+    logger.error(
+        "Unmatched square bracket (index " + initialPos + "): '" + 
+        pattern.substring(initialPos) + "'", 
+        ErrorType.MALFORMED_INPUT
+    );
+    return Optional.empty();
+}
+
+if (matcher.matches() && vertParts.get().length == 1) {
+    logger.warn(
+        "The parse mark in the '" + s.get() + 
+        "' part of the pattern will not be applied to all elements",
+        "If this is unwanted behavior, use the syntax sugar"
+    );
+}
+```
+
+<Warning>
+Invalid patterns will prevent the syntax from being registered. Always test your patterns during development.
+</Warning>
+
+## Performance Considerations
+
+1. **Keyword optimization**: Syntaxes with unique keywords are faster to match
+2. **Expression placement**: Expressions at the end of patterns are more efficient
+3. **Choice groups**: Too many choices can slow down matching
+4. **Regex complexity**: Complex regex patterns can be expensive
+
+<Note>
+The parser caches pattern compilations and uses keyword-based filtering to minimize unnecessary pattern matching attempts.
+</Note>

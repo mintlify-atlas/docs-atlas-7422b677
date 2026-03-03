@@ -1,0 +1,255 @@
+---
+title: Creating Addons
+description: Learn how to create custom addons for Skript Parser
+---
+
+Addons are modules that hook into the Skript Parser API to register custom syntax and handle triggers. This guide will walk you through creating your own addon.
+
+## Understanding the Addon System
+
+The addon system is built around the `SkriptAddon` abstract class, which provides:
+
+- **Global registration**: Addons are registered globally with unique names
+- **Syntax management**: Each addon has its own `SkriptRegistration` for managing syntax elements
+- **Event handling**: Addons can handle specific event types
+- **Lifecycle hooks**: Callbacks when scripts finish loading
+
+### Key Components
+
+**SkriptAddon (Base Class)**
+
+Located at: `io.github.syst3ms.skriptparser.registration.SkriptAddon`
+
+```java
+public abstract class SkriptAddon {
+    private final String addonName;
+    private final List<Class<? extends SkriptEvent>> handledEvents;
+    
+    public SkriptAddon(String name) { ... }
+    public abstract SkriptRegistration getSkriptRegistration();
+    public void finishedLoading(@Nullable String scriptName) { ... }
+    public final boolean canHandleEvent(SkriptEvent event) { ... }
+}
+```
+
+## Creating Your First Addon
+
+<Steps>
+  <Step title="Create the Addon Class">
+    Extend `SkriptAddon` and provide a unique name:
+
+    ```java
+    package com.example.myaddon;
+
+    import io.github.syst3ms.skriptparser.registration.SkriptAddon;
+    import io.github.syst3ms.skriptparser.registration.SkriptRegistration;
+
+    public class MyAddon extends SkriptAddon {
+        private final SkriptRegistration registration;
+
+        public MyAddon() {
+            super("MyAddon");  // Must be unique!
+            this.registration = new SkriptRegistration(this);
+        }
+
+        @Override
+        public SkriptRegistration getSkriptRegistration() {
+            return registration;
+        }
+    }
+    ```
+
+    <Warning>
+      The addon name must be unique. If an addon with the same name already exists, an `IllegalArgumentException` will be thrown.
+    </Warning>
+  </Step>
+
+  <Step title="Register Your Syntax">
+    Use the `SkriptRegistration` instance to register syntax elements:
+
+    ```java
+    public class MyAddon extends SkriptAddon {
+        private final SkriptRegistration registration;
+
+        public MyAddon() {
+            super("MyAddon");
+            this.registration = new SkriptRegistration(this);
+            registerSyntax();
+        }
+
+        private void registerSyntax() {
+            // Register a simple effect
+            registration.addEffect(
+                MyCustomEffect.class,
+                "send message %string% to console"
+            );
+
+            // Register an expression
+            registration.addExpression(
+                MyCustomExpression.class,
+                String.class,
+                true,
+                "the custom value"
+            );
+
+            // Register types, converters, etc.
+            registration.addType(
+                MyType.class,
+                "mytype",
+                "mytype@s"
+            );
+        }
+
+        @Override
+        public SkriptRegistration getSkriptRegistration() {
+            return registration;
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Finalize Registration">
+    Call `register()` to commit all syntax to the global registry:
+
+    ```java
+    public void initialize() {
+        registerSyntax();
+        var logs = registration.register();
+        
+        // Handle any registration errors
+        for (var log : logs) {
+            if (log.getType().isError()) {
+                System.err.println("Error: " + log.getMessage());
+            }
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Implement Lifecycle Hooks (Optional)">
+    Override lifecycle methods to perform actions at specific times:
+
+    ```java
+    @Override
+    public void finishedLoading(@Nullable String scriptName) {
+        if (scriptName != null) {
+            System.out.println("Script loaded: " + scriptName);
+        } else {
+            System.out.println("All scripts finished loading");
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Real Example: TestAddon
+
+Here's a real addon from the source code (`TestAddon.java`):
+
+```java
+public class TestAddon extends SkriptAddon {
+    private final Map<String, List<Trigger>> testTriggers = new HashMap<>();
+
+    public TestAddon(String name) {
+        super(name);
+    }
+
+    @Override
+    public void finishedLoading() {
+        // Run all test triggers when loading completes
+        for (Trigger trigger : testTriggers.values().stream().flatMap(List::stream).toList()) {
+            Statement.runAll(trigger, new TestContext.SubTestContext());
+        }
+        
+        // Clear triggers for next test
+        testTriggers.clear();
+    }
+
+    @Override
+    public SkriptRegistration getSkriptRegistration() {
+        return Parser.getMainRegistration();
+    }
+}
+```
+
+## Event Handling
+
+Addons can filter which events they handle:
+
+```java
+public class MyAddon extends SkriptAddon {
+    // ... constructor ...
+
+    private void registerEvents() {
+        registration.newEvent(MyCustomEvent.class, "on my event")
+            .setHandledContexts(MyEventContext.class)
+            .register();
+    }
+
+    // Check if addon can handle an event
+    public boolean canHandle(SkriptEvent event) {
+        return canHandleEvent(event);
+    }
+}
+```
+
+The `canHandleEvent()` method automatically checks if the event's class was registered by this addon.
+
+## Accessing Registered Addons
+
+Retrieve addons globally:
+
+```java
+// Get all registered addons
+List<SkriptAddon> addons = SkriptAddon.getAddons();
+
+// Get specific addon by name
+SkriptAddon myAddon = SkriptAddon.getAddon("MyAddon");
+if (myAddon != null) {
+    SkriptRegistration reg = myAddon.getSkriptRegistration();
+}
+```
+
+## Best Practices
+
+<Note>
+  - **Unique Names**: Always use unique, descriptive addon names
+  - **Error Handling**: Check registration logs for errors and warnings
+  - **Registration Order**: Register types before syntax that uses them
+  - **Logger Usage**: Pass a custom `SkriptLogger` to `SkriptRegistration` constructor for better error tracking
+</Note>
+
+## Advanced: Custom Logger
+
+For better error tracking, provide a custom logger:
+
+```java
+import io.github.syst3ms.skriptparser.log.SkriptLogger;
+
+public class MyAddon extends SkriptAddon {
+    private final SkriptLogger logger;
+    private final SkriptRegistration registration;
+
+    public MyAddon() {
+        super("MyAddon");
+        this.logger = new SkriptLogger();
+        this.registration = new SkriptRegistration(this, logger);
+    }
+
+    public void initialize() {
+        registerSyntax();
+        var logs = registration.register();
+        
+        // Process logs
+        for (var log : logs) {
+            System.out.println(log.getType() + ": " + log.getMessage());
+        }
+    }
+}
+```
+
+## Next Steps
+
+- Learn how to [register custom syntax](/guides/registering-syntax)
+- Create [custom types](/guides/custom-types)
+- Master [pattern matching](/guides/pattern-matching)

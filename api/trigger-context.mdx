@@ -1,0 +1,368 @@
+---
+title: 'TriggerContext'
+description: 'Context interface for trigger execution environments'
+---
+
+## Overview
+
+The `TriggerContext` interface represents the context under which a trigger may be run. It provides a way to identify and differentiate between different execution environments for Skript code.
+
+**Package:** `io.github.syst3ms.skriptparser.lang`
+
+**Type:** Interface
+
+## Purpose
+
+TriggerContext serves to:
+1. Identify the execution environment of a trigger
+2. Store context-specific data and state
+3. Enable context-aware expressions and conditions
+4. Differentiate between different event types
+
+## Interface Definition
+
+```java
+public interface TriggerContext {
+    String getName();
+}
+```
+
+## Methods
+
+### getName
+
+```java
+String getName()
+```
+
+Returns the name of this context.
+
+<ResponseField name="return" type="String">
+  A string identifier for this context type.
+</ResponseField>
+
+**Example:**
+```java
+TriggerContext context = new ScriptLoadContext(args);
+String name = context.getName();  // Returns "main"
+```
+
+## Constants
+
+### DUMMY
+
+```java
+TriggerContext DUMMY = () -> "dummy"
+```
+
+A dummy TriggerContext that may be used when the context is known not to matter.
+
+<ParamField path="DUMMY" type="TriggerContext">
+  A placeholder context for testing or situations where context is irrelevant.
+  
+  Returns `"dummy"` from `getName()`.
+</ParamField>
+
+**Example Usage:**
+```java
+// Use when context doesn't affect the operation
+trigger.execute(TriggerContext.DUMMY);
+```
+
+## Built-in Implementations
+
+Skript Parser provides several built-in context implementations:
+
+### ScriptLoadContext
+
+Context for script loading (equivalent to `main()` in Java).
+
+**Package:** `io.github.syst3ms.skriptparser.event`
+
+```java
+public class ScriptLoadContext implements TriggerContext {
+    private final String[] args;
+    
+    public ScriptLoadContext(String[] args) {
+        this.args = args;
+    }
+    
+    @Override
+    public String getName() {
+        return "main";
+    }
+    
+    public String[] getArguments() {
+        return args;
+    }
+}
+```
+
+**Example:**
+```java
+String[] programArgs = {"--verbose", "input.txt"};
+ScriptLoadContext context = new ScriptLoadContext(programArgs);
+
+// Access arguments in expressions
+String[] args = context.getArguments();
+```
+
+### FunctionContext
+
+Context for function execution.
+
+**Package:** `io.github.syst3ms.skriptparser.structures.functions`
+
+```java
+public record FunctionContext(
+    Function<?> owningFunction
+) implements TriggerContext {
+    
+    @Override
+    public String getName() {
+        return "function";
+    }
+}
+```
+
+**Example:**
+```java
+Function<?> myFunction = /* ... */;
+FunctionContext context = new FunctionContext(myFunction);
+
+// Context knows which function is executing
+Function<?> owner = context.owningFunction();
+```
+
+### WhenContext
+
+Context for conditional event execution.
+
+**Package:** `io.github.syst3ms.skriptparser.event`
+
+```java
+public class WhenContext implements TriggerContext {
+    @Override
+    public String getName() {
+        return "when";
+    }
+}
+```
+
+### AtTimeContext
+
+Context for scheduled time-based events.
+
+**Package:** `io.github.syst3ms.skriptparser.event`
+
+```java
+public class AtTimeContext implements TriggerContext {
+    @Override
+    public String getName() {
+        return "at";
+    }
+}
+```
+
+## Creating Custom Contexts
+
+You can create custom contexts for your addons:
+
+### Basic Implementation
+
+```java
+public class MyCustomContext implements TriggerContext {
+    @Override
+    public String getName() {
+        return "my-context";
+    }
+}
+```
+
+### Context with State
+
+```java
+public class PlayerEventContext implements TriggerContext {
+    private final Player player;
+    private final Location location;
+    
+    public PlayerEventContext(Player player, Location location) {
+        this.player = player;
+        this.location = location;
+    }
+    
+    @Override
+    public String getName() {
+        return "player-event";
+    }
+    
+    public Player getPlayer() {
+        return player;
+    }
+    
+    public Location getLocation() {
+        return location;
+    }
+}
+```
+
+**Usage in Expression:**
+```java
+public class ExprEventPlayer extends Expression<Player> {
+    @Override
+    public Player getSingle(TriggerContext context) {
+        if (context instanceof PlayerEventContext playerContext) {
+            return playerContext.getPlayer();
+        }
+        return null;
+    }
+}
+```
+
+### Record-based Context
+
+Java records provide a concise way to create contexts:
+
+```java
+public record ItemEventContext(
+    Item item,
+    Location location,
+    Player player
+) implements TriggerContext {
+    
+    @Override
+    public String getName() {
+        return "item-event";
+    }
+}
+```
+
+## Context Usage Patterns
+
+### Type Checking
+
+```java
+public void processContext(TriggerContext context) {
+    if (context instanceof ScriptLoadContext loadContext) {
+        String[] args = loadContext.getArguments();
+        // Process load context
+    } else if (context instanceof FunctionContext funcContext) {
+        Function<?> func = funcContext.owningFunction();
+        // Process function context
+    }
+}
+```
+
+### Pattern Matching (Java 17+)
+
+```java
+public String describeContext(TriggerContext context) {
+    return switch (context) {
+        case ScriptLoadContext load -> 
+            "Script loading with " + load.getArguments().length + " args";
+        case FunctionContext func -> 
+            "Function: " + func.owningFunction().getName();
+        case WhenContext when -> 
+            "Conditional event";
+        default -> 
+            "Context: " + context.getName();
+    };
+}
+```
+
+### Context in Trigger Execution
+
+```java
+public class Trigger {
+    public void execute(TriggerContext context) {
+        // Trigger code executes within this context
+        for (Statement stmt : statements) {
+            stmt.run(context);
+        }
+    }
+}
+```
+
+## Best Practices
+
+### 1. Descriptive Names
+
+Use clear, descriptive names that indicate the context purpose:
+
+```java
+@Override
+public String getName() {
+    return "player-join";  // Good: specific and clear
+    // return "ctx";  // Bad: vague
+}
+```
+
+### 2. Immutable State
+
+Make context data immutable when possible:
+
+```java
+// Good: immutable record
+public record EventContext(
+    String eventName,
+    long timestamp
+) implements TriggerContext { }
+
+// Good: defensive copy
+public class ArgsContext implements TriggerContext {
+    private final String[] args;
+    
+    public ArgsContext(String[] args) {
+        this.args = Arrays.copyOf(args, args.length);
+    }
+    
+    public String[] getArguments() {
+        return Arrays.copyOf(args, args.length);
+    }
+}
+```
+
+### 3. Context Inheritance
+
+Extend contexts to add functionality while maintaining compatibility:
+
+```java
+public class ExtendedLoadContext extends ScriptLoadContext {
+    private final Map<String, Object> metadata;
+    
+    public ExtendedLoadContext(String[] args, Map<String, Object> metadata) {
+        super(args);
+        this.metadata = Map.copyOf(metadata);
+    }
+    
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+}
+```
+
+### 4. Type Safety
+
+Provide helper methods for safe context access:
+
+```java
+public class ContextUtils {
+    public static Optional<ScriptLoadContext> asLoadContext(
+        TriggerContext context
+    ) {
+        return context instanceof ScriptLoadContext load
+            ? Optional.of(load)
+            : Optional.empty();
+    }
+}
+
+// Usage
+ContextUtils.asLoadContext(context)
+    .map(ScriptLoadContext::getArguments)
+    .ifPresent(args -> processArgs(args));
+```
+
+## See Also
+
+- [Skript](/api/skript) - Uses contexts when executing triggers
+- [Events and Triggers](/concepts/events-and-triggers) - Conceptual overview of trigger execution

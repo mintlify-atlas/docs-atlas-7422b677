@@ -1,0 +1,189 @@
+---
+title: SkriptAddon
+description: Base class for creating addons that extend the Skript Parser functionality
+---
+
+## Overview
+
+The `SkriptAddon` class is the foundation for all addons - modules that hook into the Skript Parser API to register custom syntax and handle triggers. Every addon must extend this abstract class and implement the required methods.
+
+## Class Definition
+
+```java
+public abstract class SkriptAddon
+```
+
+**Package:** `io.github.syst3ms.skriptparser.registration`
+
+## Constructor
+
+<ParamField path="SkriptAddon(String name)" type="constructor">
+  Creates a new SkriptAddon with the specified name.
+  
+  <ParamField path="name" type="String" required>
+    The unique name for this addon. Must not conflict with existing addon names.
+  </ParamField>
+  
+  **Throws:** `IllegalArgumentException` if an addon with the same name is already registered.
+</ParamField>
+
+## Abstract Methods
+
+These methods must be implemented by your addon:
+
+### getSkriptRegistration
+
+```java
+public abstract SkriptRegistration getSkriptRegistration()
+```
+
+Returns the `SkriptRegistration` instance linked to this addon. This is where all syntax registration happens.
+
+**Returns:** The SkriptRegistration object for this addon
+
+## Lifecycle Methods
+
+These optional methods can be overridden to handle addon lifecycle events:
+
+### finishedLoading (per-script)
+
+```java
+public void finishedLoading(@Nullable String scriptName)
+```
+
+Called when a script has finished loading. Override this to perform per-script initialization.
+
+<ParamField path="scriptName" type="String" required={false}>
+  The name of the script that finished loading, or null
+</ParamField>
+
+### finishedLoading (all scripts)
+
+```java
+public void finishedLoading()
+```
+
+Called when all scripts have finished loading. Override this to perform final initialization after all scripts are loaded.
+
+## Public Methods
+
+### getAddonName
+
+```java
+public final String getAddonName()
+```
+
+Returns the name of this addon.
+
+**Returns:** The addon's unique name
+
+### canHandleEvent
+
+```java
+public final boolean canHandleEvent(SkriptEvent event)
+```
+
+Checks whether the given event has been registered by this SkriptAddon. This is a basic way to filter out triggers you aren't able to deal with.
+
+<ParamField path="event" type="SkriptEvent" required>
+  The event to check
+</ParamField>
+
+**Returns:** `true` if this addon can handle the event, `false` otherwise
+
+## Static Methods
+
+### getAddons
+
+```java
+public static @NotNull List<SkriptAddon> getAddons()
+```
+
+Returns an unmodifiable list of all SkriptAddons that are registered globally.
+
+**Returns:** List of all registered SkriptAddons
+
+### getAddon
+
+```java
+public static @Nullable SkriptAddon getAddon(String name)
+```
+
+Get a SkriptAddon by its name.
+
+<ParamField path="name" type="String" required>
+  Name of the addon to retrieve
+</ParamField>
+
+**Returns:** The SkriptAddon with the given name, or null if not found
+
+## Creating an Addon
+
+Here's a complete example of creating a custom addon:
+
+```java
+public class MyCustomAddon extends SkriptAddon {
+    private final SkriptRegistration registration;
+    
+    public MyCustomAddon() {
+        super("MyAddon");
+        this.registration = new SkriptRegistration(this);
+        
+        // Register your syntax
+        registration.addEffect(
+            MyCustomEffect.class,
+            "do something cool"
+        );
+        
+        registration.addExpression(
+            MyCustomExpression.class,
+            String.class,
+            true,
+            "my custom value"
+        );
+        
+        // Complete registration
+        registration.register();
+    }
+    
+    @Override
+    public SkriptRegistration getSkriptRegistration() {
+        return registration;
+    }
+    
+    @Override
+    public void finishedLoading(String scriptName) {
+        System.out.println("Script loaded: " + scriptName);
+    }
+    
+    @Override
+    public void finishedLoading() {
+        System.out.println("All scripts loaded!");
+    }
+}
+```
+
+## Usage Example
+
+```java
+// Initialize your addon
+MyCustomAddon addon = new MyCustomAddon();
+
+// Retrieve addon by name later
+SkriptAddon retrievedAddon = SkriptAddon.getAddon("MyAddon");
+
+// Get all registered addons
+List<SkriptAddon> allAddons = SkriptAddon.getAddons();
+```
+
+## Best Practices
+
+1. **Unique Names**: Always use a unique name for your addon to avoid conflicts
+2. **Registration Timing**: Complete all syntax registration in the constructor before calling `register()`
+3. **Lifecycle Hooks**: Use `finishedLoading()` methods for initialization that depends on loaded scripts
+4. **Event Filtering**: Use `canHandleEvent()` to filter events your addon can handle
+
+## See Also
+
+- [SkriptRegistration](/api/skript-registration) - Register syntax elements
+- [SyntaxManager](/api/syntax-manager) - Access registered syntax

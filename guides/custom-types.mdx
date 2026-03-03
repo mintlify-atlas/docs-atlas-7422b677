@@ -1,0 +1,445 @@
+---
+title: Custom Types
+description: Learn how to create and register custom types with converters, serializers, and arithmetic
+---
+
+Types are fundamental to Skript Parser, defining what kinds of values can be used in expressions. This guide covers creating custom types with full support for parsing, conversion, serialization, and arithmetic operations.
+
+## Understanding Types
+
+The `Type` class (`io.github.syst3ms.skriptparser.types.Type`) represents a data type in Skript:
+
+```java
+public class Type<T> {
+    private final Class<T> typeClass;              // Java class
+    private final String baseName;                 // "string", "number"
+    private final String[] pluralForms;            // ["string", "strings"]
+    private final Function<String, T> literalParser;  // Parse from text
+    private final Function<Object, String> toStringFunction;
+    private final Changer<T> defaultChanger;       // For modifications
+    private final Arithmetic<T, ?> arithmetic;     // Math operations
+    private final TypeSerializer<T> serializer;    // Save/load
+}
+```
+
+## Basic Type Registration
+
+### Simple Type
+
+```java
+registration.addType(
+    MyCustomClass.class,
+    "customtype",       // Base name (singular)
+    "customtype@s"      // Plural pattern
+);
+```
+
+### Plural Patterns
+
+Use `|` to define singular and plural forms:
+
+| Pattern | Singular | Plural |
+|---------|----------|--------|
+| `fish` | fish | fish (invariant) |
+| `dog\|s` | dog | dogs |
+| `part\|y\|ies` | party | parties |
+| `cact\|us\|i` | cactus | cacti |
+
+```java
+registration.addType(
+    Person.class,
+    "person",
+    "person|people"  // person/people
+);
+```
+
+## Type with Literal Parser
+
+Allow parsing from string literals:
+
+```java
+registration.newType(Color.class, "color", "color@s")
+    .literalParser(s -> {
+        // Parse from string
+        return Color.ofLiteral(s).orElse(null);
+    })
+    .toStringFunction(Color::toString)
+    .name("Color")
+    .description("Represents a color.")
+    .since("1.0.0")
+    .register();
+```
+
+**Real Example from `DefaultRegistration.java:44-88`:**
+
+```java
+registration.newType(Integer.class, "integer", "integer@s")
+    .literalParser(s -> {
+        if (s == null) return null;
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    })
+    .name("Integer")
+    .description("A whole number.")
+    .since("1.0.0")
+    .register();
+```
+
+## Type with Custom String Conversion
+
+```java
+registration.newType(Float.class, "float", "float@s")
+    .literalParser(s -> {
+        try {
+            return Float.parseFloat(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    })
+    .toStringFunction(f -> String.format("%.2f", f))  // Custom formatting
+    .register();
+```
+
+## Adding Arithmetic Support
+
+Enable math operations on your type:
+
+```java
+import io.github.syst3ms.skriptparser.types.changers.Arithmetic;
+
+registration.newType(Duration.class, "duration", "duration@s")
+    .arithmetic(new Arithmetic<Duration, Duration>() {
+        @Override
+        public Duration difference(Duration first, Duration second) {
+            return first.minus(second).abs();
+        }
+
+        @Override
+        public Duration add(Duration value, Duration difference) {
+            return value.plus(difference);
+        }
+
+        @Override
+        public Duration subtract(Duration value, Duration difference) {
+            return value.minus(difference);
+        }
+
+        @Override
+        public Class<? extends Duration> getRelativeType() {
+            return Duration.class;
+        }
+    })
+    .register();
+```
+
+**Real Example from `DefaultRegistration.java:336-356`:**
+
+```java
+registration.newType(Duration.class, "duration", "duration@s")
+    .name("Duration")
+    .description("Represents a time-based amount of time, such as '34.5 seconds'.")
+    .usage(DurationUtils.getUsage())
+    .since("1.0.0")
+    .literalParser(s -> DurationUtils.parseDuration(s).orElse(null))
+    .toStringFunction(DurationUtils::toStringDuration)
+    .arithmetic(new Arithmetic<Duration, Duration>() {
+        @Override
+        public Duration difference(Duration first, Duration second) {
+            return first.minus(second).abs();
+        }
+
+        @Override
+        public Duration add(Duration value, Duration difference) {
+            return value.plus(difference);
+        }
+
+        @Override
+        public Duration subtract(Duration value, Duration difference) {
+            return value.minus(difference);
+        }
+
+        @Override
+        public Class<? extends Duration> getRelativeType() {
+            return Duration.class;
+        }
+    })
+    .register();
+```
+
+## Type Serialization
+
+Enable saving/loading types to databases:
+
+```java
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import io.github.syst3ms.skriptparser.types.changers.TypeSerializer;
+
+registration.newType(Color.class, "color", "color@s")
+    .serializer(new TypeSerializer<>() {
+        @Override
+        public JsonElement serialize(Gson gson, Color value) {
+            return gson.toJsonTree(value.toJavaColor().getRGB(), Integer.class);
+        }
+
+        @Override
+        public Color deserialize(Gson gson, JsonElement json) {
+            int asInt = json.getAsInt();
+            java.awt.Color color = new java.awt.Color(asInt);
+            return Color.of(color.getRed(), color.getGreen(), color.getBlue())
+                .orElseThrow();
+        }
+    })
+    .register();
+```
+
+## Complete Type Example
+
+Here's a comprehensive type registration from `DefaultRegistration.java:318-357`:
+
+```java
+registration.newType(Duration.class, "duration", "duration@s")
+    .name("Duration")
+    .description("Represents a time-based amount of time, such as '34.5 seconds'.")
+    .usage(DurationUtils.getUsage())
+    .since("1.0.0")
+    .literalParser(s -> DurationUtils.parseDuration(s).orElse(null))
+    .toStringFunction(DurationUtils::toStringDuration)
+    .serializer(new TypeSerializer<>() {
+        @Override
+        public JsonElement serialize(Gson gson, Duration value) {
+            return gson.toJsonTree(value.toMillis(), Long.class);
+        }
+
+        @Override
+        public Duration deserialize(Gson gson, JsonElement element) {
+            return Duration.ofMillis(element.getAsLong());
+        }
+    })
+    .arithmetic(new Arithmetic<Duration, Duration>() {
+        @Override
+        public Duration difference(Duration first, Duration second) {
+            return first.minus(second).abs();
+        }
+
+        @Override
+        public Duration add(Duration value, Duration difference) {
+            return value.plus(difference);
+        }
+
+        @Override
+        public Duration subtract(Duration value, Duration difference) {
+            return value.minus(difference);
+        }
+
+        @Override
+        public Class<? extends Duration> getRelativeType() {
+            return Duration.class;
+        }
+    })
+    .register();
+```
+
+## Type Converters
+
+Converters allow automatic type conversion:
+
+### Basic Converter
+
+```java
+import java.util.Optional;
+
+// Convert Long to Integer
+registration.addConverter(
+    Long.class,
+    Integer.class,
+    l -> Optional.of(l.intValue())
+);
+```
+
+### Converter with Options
+
+```java
+import io.github.syst3ms.skriptparser.types.conversions.Converters;
+
+registration.addConverter(
+    String.class,
+    Integer.class,
+    s -> {
+        try {
+            return Optional.of(Integer.parseInt(s));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    },
+    Converters.NO_CHAINING  // Don't use in chained converters
+);
+```
+
+**Converter Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `ALL_CHAINING` (0) | Can be part of chained converters |
+| `NO_LEFT_CHAINING` (1) | Can't be first in chain |
+| `NO_RIGHT_CHAINING` (2) | Can't be second in chain |
+| `NO_CHAINING` (3) | Can't be in any chain |
+
+### Real Converter Examples
+
+From `DefaultRegistration.java:552-561`:
+
+```java
+registration.addConverter(SkriptDate.class, Time.class, 
+    da -> Optional.of(Time.of(da)));
+    
+registration.addConverter(Long.class, Integer.class, 
+    l -> Optional.of(l.intValue()));
+    
+registration.addConverter(Integer.class, Long.class, 
+    i -> Optional.of(i.longValue()));
+    
+registration.addConverter(Double.class, Float.class, 
+    d -> Optional.of(d.floatValue()));
+    
+registration.addConverter(Float.class, Double.class, 
+    f -> Optional.of(f.doubleValue()));
+```
+
+## Chained Converters
+
+The system automatically creates chained converters. For example, if you have:
+- `A -> B` converter
+- `B -> C` converter
+
+The system creates an automatic `A -> C` converter.
+
+From `Converters.java:94-108`:
+
+```java
+public static void createMissingConverters() {
+    for (var i = 0; i < converters.size(); i++) {
+        var info = converters.get(i);
+        for (var j = 0; j < converters.size(); j++) {
+            var info2 = converters.get(j);
+            if ((info.flags() & NO_RIGHT_CHAINING) == 0 
+                && (info2.flags() & NO_LEFT_CHAINING) == 0
+                && info2.from().isAssignableFrom(info.to()) 
+                && !converterExistsSlow(info.from(), info2.to())) {
+                converters.add(createChainedConverter(info, info2));
+            }
+        }
+    }
+}
+```
+
+## Using TypeManager
+
+Access registered types:
+
+```java
+import io.github.syst3ms.skriptparser.types.TypeManager;
+import io.github.syst3ms.skriptparser.types.Type;
+
+// Get by exact name
+Optional<? extends Type<?>> stringType = TypeManager.getByExactName("string");
+
+// Get by name (matches singular/plural)
+Optional<? extends Type<?>> type = TypeManager.getByName("strings");
+
+// Get by class
+Optional<? extends Type<String>> strType = TypeManager.getByClassExact(String.class);
+
+// Get with inheritance
+Optional<? extends Type<? super MyClass>> superType = 
+    TypeManager.getByClass(MyClass.class);
+```
+
+## Pattern Types
+
+For expressions, use pattern types:
+
+```java
+import io.github.syst3ms.skriptparser.types.PatternType;
+
+Optional<PatternType<?>> patternType = TypeManager.getPatternType("string");
+if (patternType.isPresent()) {
+    boolean isSingle = patternType.get().isSingle();
+    Type<?> type = patternType.get().getType();
+}
+```
+
+## Documentation
+
+All type registrars support documentation:
+
+```java
+registration.newType(MyType.class, "mytype", "mytype@s")
+    .name("My Type")
+    .description("A custom type for my addon")
+    .examples(
+        "set {_val} to a mytype",
+        "loop all mytypes"
+    )
+    .usage("mytype")
+    .since("1.0.0")
+    .experimental("This type is experimental")
+    .register();
+```
+
+<Note>
+  Use `.noDoc()` to exclude a type from documentation generation.
+</Note>
+
+## Best Practices
+
+<Steps>
+  <Step title="Register Types First">
+    Always register types before syntax that uses them:
+
+    ```java
+    // 1. Register types
+    registration.addType(MyType.class, "mytype", "mytype@s");
+
+    // 2. Register converters
+    registration.addConverter(MyType.class, String.class, ...);
+
+    // 3. Register syntax
+    registration.addExpression(..., MyType.class, ...);
+
+    // 4. Commit
+    registration.register();
+    ```
+  </Step>
+
+  <Step title="Handle Null Safely">
+    Always handle null in literal parsers:
+
+    ```java
+    .literalParser(s -> {
+        if (s == null) return null;
+        // ... parsing logic
+    })
+    ```
+  </Step>
+
+  <Step title="Provide Good String Conversion">
+    Make sure `toStringFunction` produces readable output:
+
+    ```java
+    .toStringFunction(obj -> {
+        if (obj == null) return TypeManager.NULL_REPRESENTATION;
+        return obj.toReadableString();
+    })
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+- Learn about [registering syntax](/guides/registering-syntax)
+- Master [pattern matching](/guides/pattern-matching)
+- Explore [creating addons](/guides/creating-addons)

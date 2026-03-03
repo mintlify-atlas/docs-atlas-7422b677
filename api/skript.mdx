@@ -1,0 +1,206 @@
+---
+title: 'Skript'
+description: 'Core addon class representing the Skript Parser itself'
+---
+
+## Overview
+
+The `Skript` class is the core `SkriptAddon` representing the Skript Parser itself. It handles the execution of triggers that load on startup and manages function registration.
+
+**Package:** `io.github.syst3ms.skriptparser`
+
+**Extends:** `SkriptAddon`
+
+## Purpose
+
+The Skript class serves as:
+1. The main addon instance for the parser itself
+2. Handler for script initialization triggers
+3. Manager for function registration
+4. Provider of main registration access
+
+## Constructor
+
+```java
+public Skript(String[] mainArgs)
+```
+
+Creates a new Skript instance with program arguments.
+
+<ParamField path="mainArgs" type="String[]">
+  Program arguments passed from the command line or initialization.
+</ParamField>
+
+**Example:**
+```java
+// Typically called internally by Parser.init()
+String[] args = {"--verbose", "arg1"};
+Skript skript = new Skript(args);
+```
+
+## Methods
+
+### finishedLoading
+
+```java
+@Override
+public void finishedLoading(@Nullable String scriptName)
+```
+
+Called when a script has finished loading. Executes all triggers that should run on load.
+
+<ParamField path="scriptName" type="String" optional>
+  The name of the script that finished loading.
+  
+  - If `null`, processes all triggers globally
+  - If specified, processes only triggers from that script
+</ParamField>
+
+**Behavior:**
+1. Retrieves triggers for the specified script (or all triggers if scriptName is null)
+2. Sorts triggers by their event's loading priority
+3. Executes triggers in priority order:
+   - Triggers with `StartOnLoadEvent` are initialized
+   - Function structure triggers are registered
+
+**Example:**
+```java
+// Called automatically by Parser.run()
+skript.finishedLoading("example.sk");
+```
+
+**Trigger Processing:**
+
+The method handles two special event types:
+
+1. **StartOnLoadEvent** - Events that execute immediately when the script loads
+   ```java
+   if (trigger.getEvent() instanceof StartOnLoadEvent event) {
+       event.onInitialLoad(trigger);
+   }
+   ```
+
+2. **StructFunction** - Function definitions that need to be registered
+   ```java
+   else if (trigger.getEvent() instanceof StructFunction func) {
+       func.register(trigger);
+   }
+   ```
+
+### getSkriptRegistration
+
+```java
+@Override
+public SkriptRegistration getSkriptRegistration()
+```
+
+Returns the main `SkriptRegistration` instance used by the parser.
+
+<ResponseField name="return" type="SkriptRegistration">
+  The main registration instance from `Parser.getMainRegistration()`.
+</ResponseField>
+
+**Example:**
+```java
+SkriptRegistration registration = skript.getSkriptRegistration();
+// Use registration to access syntax elements
+```
+
+## Relationship with SkriptAddon
+
+As a `SkriptAddon`, the Skript class inherits several important capabilities:
+
+### Inherited Methods
+
+**getAddonName()**
+```java
+String name = skript.getAddonName();  // Returns "Skript-Parser"
+```
+
+**canHandleEvent()**
+```java
+boolean canHandle = skript.canHandleEvent(someEvent);
+```
+
+Checks if this addon registered the given event type.
+
+### Addon Registration
+
+The Skript instance is automatically registered in the global addon map:
+
+```java
+// Retrieve the Skript addon
+SkriptAddon addon = SkriptAddon.getAddon("Skript-Parser");
+
+// List all addons (includes Skript and any loaded addons)
+List<SkriptAddon> allAddons = SkriptAddon.getAddons();
+```
+
+## Usage in Parser
+
+The Skript class is created and used by the Parser during initialization:
+
+```java
+public static void init(
+    String[] mainPackages,
+    String[] subPackages,
+    String[] programArgs,
+    boolean standalone
+) {
+    // Create the main Skript instance
+    Skript skript = new Skript(programArgs);
+    
+    // Create registration with this Skript instance
+    registration = new SkriptRegistration(skript);
+    
+    // ... rest of initialization
+}
+```
+
+## Trigger Execution Flow
+
+When a script loads, the following sequence occurs:
+
+1. **Script Parsing** - Parser processes the script file
+2. **Trigger Creation** - Triggers are created for events and structures
+3. **Registration** - Triggers are registered in the TriggerMap
+4. **finishedLoading()** - Called on all addons including Skript
+5. **Priority Sorting** - Triggers sorted by loading priority
+6. **Execution** - StartOnLoad events execute, functions register
+
+**Example Script:**
+```skript
+# This event runs on script load
+on load:
+    broadcast "Script loaded!"
+
+# This function gets registered
+function greet(name: text) :: text:
+    return "Hello, %name%!"
+```
+
+When this script loads:
+1. The `on load` trigger executes via `StartOnLoadEvent`
+2. The function `greet` is registered via `StructFunction`
+
+## Loading Priority
+
+Triggers are executed in order of their event's loading priority. Lower numbers execute first:
+
+```java
+triggers.stream()
+    .sorted(Comparator.comparing(
+        trigger -> trigger.getEvent().getLoadingPriority()
+    ))
+    .forEach(trigger -> {
+        // Process trigger
+    });
+```
+
+This ensures proper initialization order for dependent triggers.
+
+## See Also
+
+- [Parser](/api/parser) - Main entry point that creates the Skript instance
+- [TriggerContext](/api/trigger-context) - Context under which triggers execute
+- [SkriptRegistration](/api/skript-registration) - Registration system for syntax elements

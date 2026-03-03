@@ -1,0 +1,91 @@
+---
+title: Language Overview
+description: Introduction to the Skript language and its standalone parser implementation
+---
+
+## What is Skript?
+
+Skript is a Spigot plugin for Minecraft servers, created by Njol back in 2011. The aim of Skript has been to act as an easy hands-on solution for Minecraft server modification. Plugin development often requires a lot of time to learn and become proficient with Java, that is if you don't just pay someone else to do it for you. Skript code is interpreted from plaintext side, and can be loaded and reloaded on the fly in-game, without any need to compile and build.
+
+### Natural Language Syntax
+
+Valid Skript code looks like this:
+
+```vba
+on right click on dirt:
+    if the player is holding seeds:
+        set the clicked block to grass
+    else if the player is holding any mushroom:
+        set the clicked block to mycelium
+```
+
+Even if you have never written a single line of code in your entire life, what this small script does should be very clear to you. Such is the Skript language's purpose. This is especially valuable in a Minecraft environment because Java is a notoriously verbose and bulky language to program in.
+
+<Info>
+The language is designed to be **human-readable** and **intuitive**, making it accessible to non-programmers while remaining powerful enough for complex scripting tasks.
+</Info>
+
+## The Problem with the Original Plugin
+
+However, the Skript *plugin* has some glaring flaws. To put it bluntly, it's quite the mess. Skript was created by Njol as a small hobby project that grew massively thereafter. Unfortunately as more and more features were tacked on the existing ones, some general design issues persisted and even worsened.
+
+### Technical Issues
+
+As it is, Skript is riddled with some bad programming design, including:
+
+- **Spaghetti code**: Poor code organization making maintenance difficult
+- **Inelegant control flow**: Complex and hard-to-follow execution paths
+- **Wasteful parsing process**: Inefficient syntax parsing and interpretation
+- **Tight coupling with Spigot**: The code is essentially useless outside of a Spigot Minecraft server
+
+<Warning>
+It is also tightly-coupled with the Spigot API, meaning that not only can Skript only be used on a Minecraft server running Spigot, but it's very hard (and not really worth it, anyway) to remove all the Spigot-related elements from the codebase.
+</Warning>
+
+## This Project: A Standalone Implementation
+
+The main aim is to provide a **better, easier to understand and more flexible** implementation of the Skript language. This implies, to a yet indeterminate extent, an overhaul of the API present in the Skript plugin.
+
+### Key Improvements
+
+- **Clean architecture**: Well-organized, maintainable codebase
+- **Platform independence**: Works independently of Minecraft/Spigot
+- **Efficient parsing**: Optimized pattern matching and syntax processing
+- **Flexible design**: Can be embedded in various environments
+
+### Use Cases
+
+A standalone CLI implementation can be found at [skript-cli](https://github.com/SkriptLang/skript-cli). It works not only as a simple, bare-bones implementation of the language, but also as a proof-of-concept that demonstrates how this project's code can be repurposed for many different environments, not just Minecraft.
+
+<Accordion title="Use Cases for the Standalone Parser">
+  **Command-Line Tools**: Create CLI applications with Skript's intuitive syntax
+  
+  **Embedded Scripting**: Integrate Skript as a scripting language in Java applications
+  
+  **Custom Domains**: Use Skript as a foundation for domain-specific languages
+  
+  **Educational Tools**: Teach programming concepts with an approachable language
+  
+  **Game Development**: Script game logic in non-Minecraft projects
+</Accordion>
+
+## Differences from the Original Skript Plugin
+
+While maintaining language compatibility where possible, this implementation differs in several key ways:
+
+1. **No Spigot dependency**: Completely independent of the Minecraft server API
+2. **Cleaner API**: Better-designed interfaces and class hierarchies
+3. **Improved pattern matching**: More efficient and flexible syntax parsing
+4. **Better error handling**: Enhanced logging and debugging capabilities
+5. **Modular architecture**: Easier to extend and customize
+
+### Repository Structure
+
+This repository currently contains two main branches:
+
+- **master**: Contains a proof-of-concept implementation of the parser that compiles to an executable JAR file
+- **skript-library**: Contains no implementations, and its purpose is to be used as a base library for any skript-parser-related projects
+
+<Note>
+External contributions are extremely welcome! Adding features is obviously amazing, but smaller things such as cleaning up the code and adding documentation can go a long way for the project.
+</Note>

@@ -1,0 +1,404 @@
+---
+title: Registering Syntax
+description: Complete guide to registering expressions, effects, events, and other syntax elements
+---
+
+Skript Parser uses a fluent registration API through `SkriptRegistration` to register all syntax elements. This guide covers the registration process for expressions, effects, events, sections, and more.
+
+## Registration Overview
+
+`SkriptRegistration` is a mutable object that tracks all syntax registered by a `SkriptAddon`. Located at `io.github.syst3ms.skriptparser.registration.SkriptRegistration`.
+
+### Registration Flow
+
+<Steps>
+  <Step title="Create Registration Instance">
+    ```java
+    SkriptRegistration registration = new SkriptRegistration(myAddon);
+    ```
+  </Step>
+
+  <Step title="Register Syntax Elements">
+    ```java
+    registration.addExpression(...);
+    registration.addEffect(...);
+    registration.addType(...);
+    ```
+  </Step>
+
+  <Step title="Commit to Global Registry">
+    ```java
+    List<LogEntry> logs = registration.register();
+    ```
+  </Step>
+</Steps>
+
+## Registering Expressions
+
+Expressions return values and have patterns that include type placeholders.
+
+### Basic Expression Registration
+
+```java
+// Simple method: addExpression(class, returnType, patterns...)
+registration.addExpression(
+    ExprPlayerName.class,
+    String.class,
+    "[the] name of %player%",
+    "%player%'s name"
+);
+```
+
+**Method Signature:**
+```java
+public <C extends Expression<T>, T> void addExpression(
+    Class<C> c,           // Expression class
+    Class<T> returnType,  // What it returns
+    String... patterns    // Syntax patterns
+)
+```
+
+### Advanced: Fluent Expression Builder
+
+For more control, use the builder pattern:
+
+```java
+registration.newExpression(
+    ExprCustomValue.class,
+    Integer.class,
+    false,  // isSingle (false = can return multiple values)
+    "[the] custom value[s] of %object%"
+)
+    .setPriority(3)  // Lower = lower priority (default: 5)
+    .name("Custom Value")
+    .description("Returns the custom value of an object")
+    .examples("set {_val} to custom value of player")
+    .since("1.0.0")
+    .register();
+```
+
+### Expression with Single/Multiple Values
+
+```java
+// Single value (isSingle = true)
+registration.addExpression(
+    ExprPlayerHealth.class,
+    Double.class,
+    true,   // Returns single value
+    "[the] health of %player%"
+);
+
+// Multiple values (isSingle = false)
+registration.addExpression(
+    ExprAllPlayers.class,
+    Player.class,
+    false,  // Returns multiple values
+    "[all] [the] players"
+);
+```
+
+### Custom Priority
+
+```java
+registration.addExpression(
+    ExprHighPriority.class,
+    String.class,
+    true,
+    10,  // Higher number = higher priority
+    "important expression"
+);
+```
+
+<Note>
+  **Priority determines parsing order**: Higher priority patterns are tried first. Default is 5. Use higher priority (6-10) for more specific patterns to prevent conflicts.
+</Note>
+
+## Registering Effects
+
+Effects are executed statements that don't return values.
+
+### Basic Effect Registration
+
+```java
+registration.addEffect(
+    EffBroadcast.class,
+    "broadcast %strings%",
+    "announce %strings%"
+);
+```
+
+### Fluent Effect Builder
+
+```java
+registration.newEffect(
+    EffSendMessage.class,
+    "send [message] %strings% to %players%"
+)
+    .setPriority(5)
+    .name("Send Message")
+    .description("Sends a message to players")
+    .examples(
+        "send \"Hello\" to all players",
+        "send \"Welcome!\" to player"
+    )
+    .since("1.0.0")
+    .register();
+```
+
+## Registering Events
+
+Events define when code should execute.
+
+### Event Registration
+
+```java
+registration.newEvent(
+    EvtPlayerJoin.class,
+    "[on] player join[ing]"
+)
+    .setHandledContexts(PlayerJoinContext.class)
+    .name("Player Join")
+    .description("Called when a player joins")
+    .examples("on player join:", "    broadcast \"Welcome!\"")
+    .register();
+```
+
+**With Multiple Contexts:**
+
+```java
+registration.addEvent(
+    EvtCustom.class,
+    new Class[] { Context1.class, Context2.class },
+    "on custom event"
+);
+```
+
+## Registering Sections
+
+Sections are code blocks that contain other statements.
+
+```java
+registration.newSection(
+    SecLoop.class,
+    "loop %objects%"
+)
+    .name("Loop")
+    .description("Loops through values")
+    .examples(
+        "loop all players:",
+        "    send \"Hi\" to loop-value"
+    )
+    .register();
+```
+
+## Property Expressions
+
+Special registration for property-style expressions:
+
+```java
+// Creates patterns like "the <property> of <owner>" and "<owner>'s <property>"
+registration.newPropertyExpression(
+    ExprName.class,
+    String.class,
+    "name",      // property
+    "player"     // owner
+)
+    .name("Player Name")
+    .register();
+
+// Generates patterns:
+// - "[the] name of %player%"
+// - "%player%'s name"
+```
+
+## Property Conditionals
+
+```java
+import io.github.syst3ms.skriptparser.lang.properties.ConditionalType;
+
+registration.newPropertyConditional(
+    CondIsFlying.class,
+    "player",                    // performer
+    ConditionalType.BE,          // is/are/am
+    "flying"                     // property
+)
+    .register();
+
+// Generates: "%player% (is|are) flying"
+```
+
+## Executable Expressions
+
+Expressions that can also be used as effects:
+
+```java
+registration.newExecutableExpression(
+    ExprBroadcast.class,
+    String.class,
+    true,
+    "broadcast %strings%"
+)
+    .name("Broadcast")
+    .register();
+
+// Can be used as:
+// - Expression: "set {_msg} to broadcast \"Hi\""
+// - Effect: "broadcast \"Hi\""
+```
+
+## Context Values
+
+Context values provide event-specific data:
+
+```java
+// Single value
+registration.newSingleContextValue(
+    PlayerJoinContext.class,
+    Player.class,
+    "[the] player",
+    ctx -> ctx.getPlayer()
+)
+    .register();
+
+// Multiple values
+registration.newListContextValue(
+    MultiPlayerContext.class,
+    Player.class,
+    "[the] players",
+    ctx -> ctx.getPlayers()
+)
+    .register();
+```
+
+## Pattern Syntax Reference
+
+Patterns use special syntax to define how they match:
+
+### Type Placeholders
+
+| Pattern | Description | Example |
+|---------|-------------|----------|
+| `%type%` | Any expression of type | `%string%`, `%number%` |
+| `%*type%` | Literal only | `%*string%` |
+| `%~type%` | Expression only (no literals) | `%~object%` |
+| `%^type%` | Variable only | `%^objects%` |
+| `%-type%` | Nullable (can be null) | `%-player%` |
+| `%=boolean%` | Accepts conditionals | `%=boolean%` |
+| `%type/type2%` | Multiple type options | `%string/number%` |
+
+### Groups and Choices
+
+| Pattern | Description | Example |
+|---------|-------------|----------|
+| `(choice1\|choice2)` | One of the choices | `(send\|give)` |
+| `[optional]` | Optional part | `[the] player` |
+| `:mark:(...)` | Parse mark for choices | `:(first\|second):text` |
+
+### Regex
+
+```java
+// Regex groups with <regex>
+registration.addEffect(
+    EffCustom.class,
+    "custom <[a-z]+> command"
+);
+```
+
+<Warning>
+  Invalid regex patterns will cause registration errors. The pattern is compiled at registration time.
+</Warning>
+
+## Priority System
+
+From `SkriptRegistration.java:116-142`, priority is automatically calculated based on pattern complexity:
+
+```java
+private static int findAppropriatePriority(PatternElement el) {
+    if (el instanceof TextElement) {
+        return 5;  // Plain text: highest
+    } else if (el instanceof RegexGroup) {
+        return 1;  // Regex: lowest
+    } else if (el instanceof ExpressionElement) {
+        return 2;  // Expressions: low
+    } else if (el instanceof ChoiceGroup) {
+        // Minimum priority of choices
+        var priority = 5;
+        for (ChoiceElement choice : ((ChoiceGroup) el).getChoices()) {
+            priority = Math.min(priority, findAppropriatePriority(choice.getElement()));
+        }
+        return priority;
+    }
+    // ... compound elements ...
+}
+```
+
+**Manual Override:**
+
+```java
+registration.newExpression(...)
+    .setPriority(10)  // Override automatic priority
+    .register();
+```
+
+## Registration Data
+
+Add custom metadata to registrations:
+
+```java
+registration.newExpression(...)
+    .addData("customKey", myValue)
+    .addData("anotherKey", anotherValue)
+    .register();
+```
+
+## Complete Example
+
+Here's a complete registration from `DefaultRegistration.java:238-254`:
+
+```java
+registration.newType(String.class, "string", "string@s")
+    .name("String")
+    .description("A string of characters.")
+    .examples("set {_string} to \"Hello World!\"")
+    .since("1.0.0")
+    .serializer(new TypeSerializer<>() {
+        @Override
+        public JsonElement serialize(Gson gson, String value) {
+            return gson.toJsonTree(value, String.class);
+        }
+
+        @Override
+        public String deserialize(Gson gson, JsonElement element) {
+            return gson.fromJson(element, String.class);
+        }
+    })
+    .register();
+```
+
+## Error Handling
+
+Handle registration errors:
+
+```java
+List<LogEntry> logs = registration.register();
+
+for (LogEntry log : logs) {
+    switch (log.getType()) {
+        case ERROR:
+            System.err.println("Error: " + log.getMessage());
+            break;
+        case WARNING:
+            System.out.println("Warning: " + log.getMessage());
+            break;
+        case INFO:
+            System.out.println("Info: " + log.getMessage());
+            break;
+    }
+}
+```
+
+## Next Steps
+
+- Learn about [creating custom types](/guides/custom-types)
+- Master [advanced pattern matching](/guides/pattern-matching)
+- Explore [creating addons](/guides/creating-addons)

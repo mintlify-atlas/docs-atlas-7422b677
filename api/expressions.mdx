@@ -1,0 +1,526 @@
+---
+title: "Expression<T>"
+description: "Expression interface - represents a value with a specific type in the Skript Parser"
+---
+
+## Overview
+
+The `Expression<T>` interface represents a syntax element that returns a value of a specific type. All expressions in Skript extend this interface.
+
+**Package:** `io.github.syst3ms.skriptparser.lang`
+
+**Type Parameter:**
+- `T` - the type of value this expression returns
+
+**Extends:** `SyntaxElement`
+
+## Interface Methods
+
+### Core Value Retrieval
+
+#### getValues()
+
+```java
+T[] getValues(TriggerContext ctx)
+```
+
+Retrieves all values of this Expression, accounting for possible modifiers. If this is an or-list, it will choose a random value to return.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ResponseField name="return" type="T[]">
+  An array of the values, or null if no values exist
+</ResponseField>
+
+---
+
+#### getArray()
+
+```java
+default T[] getArray(TriggerContext ctx)
+```
+
+Retrieves all values of this Expression without accounting for modifiers. If this is an or-list, it will still return all possible values.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ResponseField name="return" type="T[]">
+  An array of the raw values (never null, empty array if no values)
+</ResponseField>
+
+---
+
+#### getSingle()
+
+```java
+default Optional<? extends T> getSingle(TriggerContext ctx)
+```
+
+Gets a single value out of this Expression.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends T>">
+  The single value, or empty if it has no value
+</ResponseField>
+
+<Warning>
+  Throws `SkriptRuntimeException` if the expression returns more than one value
+</Warning>
+
+### Type Information
+
+#### isSingle()
+
+```java
+default boolean isSingle()
+```
+
+Returns whether this expression returns a single value. By default, this is defined on registration, but can be overridden.
+
+<ResponseField name="return" type="boolean">
+  True if the expression returns a single value
+</ResponseField>
+
+---
+
+#### getReturnType()
+
+```java
+default Class<? extends T> getReturnType()
+```
+
+Returns the return type of this expression. By default, this is defined on registration, but can be overridden.
+
+<ResponseField name="return" type="Class<? extends T>">
+  The return type class of this expression
+</ResponseField>
+
+### Change Support
+
+#### acceptsChange(ChangeMode)
+
+```java
+default Optional<Class<?>[]> acceptsChange(ChangeMode mode)
+```
+
+Determines whether this expression can be changed according to a specific `ChangeMode`, and what type of values it can be changed with.
+
+<ParamField path="mode" type="ChangeMode">
+  The mode this Expression would be changed with
+</ParamField>
+
+<ResponseField name="return" type="Optional<Class<?>[]>">
+  An array of classes describing what types this Expression can be changed with, empty if it shouldn't be changed with the given change mode. For DELETE or RESET modes, an empty array should be returned.
+</ResponseField>
+
+---
+
+#### acceptsChange(ChangeMode, Expression)
+
+```java
+default boolean acceptsChange(ChangeMode mode, Expression<?> changeWith)
+```
+
+Determines whether this expression can be changed to a specific `ChangeMode` and type class.
+
+<ParamField path="mode" type="ChangeMode">
+  The mode this Expression would be changed with
+</ParamField>
+
+<ParamField path="changeWith" type="Expression<?>">
+  The Expression you want to change with
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Whether this Expression should be changed with the given change mode and expression
+</ResponseField>
+
+---
+
+#### acceptsChange(ChangeMode, Class, boolean)
+
+```java
+default boolean acceptsChange(ChangeMode mode, Class<?> needle, boolean isSingle)
+```
+
+Determines whether this expression can be changed to a specific `ChangeMode` and type class.
+
+<ParamField path="mode" type="ChangeMode">
+  The mode this Expression would be changed with
+</ParamField>
+
+<ParamField path="needle" type="Class<?>">
+  The type class of the instance this Expression would be changed with
+</ParamField>
+
+<ParamField path="isSingle" type="boolean">
+  Whether the instance this Expression would be changed with is single
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Whether this Expression should be changed with the given change mode and class
+</ResponseField>
+
+<Warning>
+  Throws `UnsupportedOperationException` if mode is DELETE or RESET
+</Warning>
+
+---
+
+#### change()
+
+```java
+default void change(TriggerContext ctx, ChangeMode changeMode, Object[] changeWith)
+```
+
+Changes this expression with the given values according to the given mode.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ParamField path="changeMode" type="ChangeMode">
+  The mode of change
+</ParamField>
+
+<ParamField path="changeWith" type="Object[]">
+  The values to change this Expression with
+</ParamField>
+
+### Iteration & Streaming
+
+#### iterator()
+
+```java
+default Iterator<? extends T> iterator(TriggerContext ctx)
+```
+
+Returns an iterator of the values of this expression.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ResponseField name="return" type="Iterator<? extends T>">
+  An iterator over the expression values
+</ResponseField>
+
+---
+
+#### stream()
+
+```java
+default Stream<? extends T> stream(TriggerContext ctx)
+```
+
+Returns a stream of the values of this expression.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ResponseField name="return" type="Stream<? extends T>">
+  A stream of the expression values (empty stream if no values)
+</ResponseField>
+
+### Conversion
+
+#### convertExpression()
+
+```java
+default <C> Optional<? extends Expression<C>> convertExpression(Class<C> to)
+```
+
+Converts this expression from its current type (`T`) to another type, using converters.
+
+<ParamField path="to" type="Class<C>">
+  The class of the type to convert this Expression to
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends Expression<C>>">
+  A converted Expression, or empty if it couldn't be converted
+</ResponseField>
+
+### Loop Support
+
+#### isLoopOf()
+
+```java
+default boolean isLoopOf(String s)
+```
+
+When this expression is looped, returns whether the given loop reference (as in `loop-<reference>`) describes each element of the values of this expression.
+
+<ParamField path="s" type="String">
+  The loop reference
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Whether the given reference describes this expression's elements. By default, returns true if the parameter is "value"
+</ResponseField>
+
+### List Modifiers
+
+#### isAndList()
+
+```java
+default boolean isAndList()
+```
+
+Returns whether this expression represents an "and" list (all values) rather than an "or" list (random value).
+
+<ResponseField name="return" type="boolean">
+  True if this is an "and" list (default is true)
+</ResponseField>
+
+---
+
+#### setAndList()
+
+```java
+default void setAndList(boolean isAndList)
+```
+
+Sets whether this expression is an "and" list.
+
+<ParamField path="isAndList" type="boolean">
+  Whether this should be an "and" list
+</ParamField>
+
+---
+
+#### getSource()
+
+```java
+default Expression<?> getSource()
+```
+
+Returns the source expression (for wrapped/converted expressions).
+
+<ResponseField name="return" type="Expression<?>">
+  The source expression (by default, returns this)
+</ResponseField>
+
+### Predicate Checking
+
+#### check(TriggerContext, Predicate)
+
+```java
+default boolean check(TriggerContext ctx, Predicate<? super T> predicate)
+```
+
+Checks this expression against the given predicate.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ParamField path="predicate" type="Predicate<? super T>">
+  The predicate to test against
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Whether the expression matches the predicate
+</ResponseField>
+
+---
+
+#### check(TriggerContext, Predicate, boolean)
+
+```java
+default boolean check(TriggerContext ctx, Predicate<? super T> predicate, boolean negated)
+```
+
+Checks this expression against the given predicate with optional negation.
+
+<ParamField path="ctx" type="TriggerContext">
+  The trigger context
+</ParamField>
+
+<ParamField path="predicate" type="Predicate<? super T>">
+  The predicate to test against
+</ParamField>
+
+<ParamField path="negated" type="boolean">
+  Whether the result should be inverted
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Whether the expression matches the predicate (accounting for negation)
+</ResponseField>
+
+## Static Methods
+
+#### check(T[], Predicate, boolean, boolean)
+
+```java
+static <T> boolean check(T[] all, Predicate<? super T> predicate, boolean negated, boolean and)
+```
+
+Checks an array of elements against a given predicate.
+
+<ParamField path="all" type="T[]">
+  The array to check
+</ParamField>
+
+<ParamField path="predicate" type="Predicate<? super T>">
+  The predicate to test
+</ParamField>
+
+<ParamField path="negated" type="boolean">
+  Whether the result should be inverted
+</ParamField>
+
+<ParamField path="and" type="boolean">
+  Whether all elements should match (true) or only one (false)
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  Whether the elements match the given predicate
+</ResponseField>
+
+---
+
+#### getMatchingSections()
+
+```java
+static <S extends CodeSection> List<? extends S> getMatchingSections(
+    ParserState parserState,
+    Class<? extends S> sectionClass
+)
+```
+
+Retrieves all matching sections of a specific type from the parser state.
+
+<ParamField path="parserState" type="ParserState">
+  The parser state containing current sections
+</ParamField>
+
+<ParamField path="sectionClass" type="Class<? extends S>">
+  The section class to match
+</ParamField>
+
+<ResponseField name="return" type="List<? extends S>">
+  A list of matching sections
+</ResponseField>
+
+---
+
+#### getLinkedSection(ParserState, Class)
+
+```java
+static <S extends CodeSection> Optional<? extends S> getLinkedSection(
+    ParserState parserState,
+    Class<? extends S> sectionClass
+)
+```
+
+Retrieves the first linked section of a specific type.
+
+<ParamField path="parserState" type="ParserState">
+  The parser state
+</ParamField>
+
+<ParamField path="sectionClass" type="Class<? extends S>">
+  The section class to find
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends S>">
+  The first matching section, or empty if none found
+</ResponseField>
+
+---
+
+#### getLinkedSection(ParserState, Class, Function)
+
+```java
+static <S extends CodeSection> Optional<? extends S> getLinkedSection(
+    ParserState parserState,
+    Class<? extends S> sectionClass,
+    Function<? super List<? extends S>, Optional<? extends S>> selector
+)
+```
+
+Retrieves a linked section using a custom selector function.
+
+<ParamField path="parserState" type="ParserState">
+  The parser state
+</ParamField>
+
+<ParamField path="sectionClass" type="Class<? extends S>">
+  The section class to find
+</ParamField>
+
+<ParamField path="selector" type="Function">
+  Custom selector function for choosing from multiple matches
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends S>">
+  The selected section, or empty if none found
+</ResponseField>
+
+## Implementation Example
+
+```java
+public class ExprLoopValue extends SectionValue<SecLoop, Object> {
+    private SecLoop loop;
+    private boolean isVariableLoop;
+    private boolean isIndex;
+    private Class<?> loopedClass;
+    
+    @Override
+    public Object[] getSectionValues(SecLoop loop, TriggerContext ctx) {
+        Object[] one = (Object[]) Array.newInstance(getReturnType(), 1);
+        if (isVariableLoop) {
+            if (loop.getArguments() == null || loop.getArguments()[0] == null) {
+                return new Object[0];
+            }
+            var current = (Pair<String, Object>) loop.getArguments()[0];
+            if (isIndex) {
+                return new String[]{current.getFirst()};
+            }
+            one[0] = current.getSecond();
+            return one;
+        }
+        Object[] arguments = loop.getArguments();
+        if (arguments == null || arguments.length == 0) {
+            return new Object[0];
+        }
+        one[0] = loop.getArguments()[0];
+        return one;
+    }
+    
+    @Override
+    public Class<?> getReturnType() {
+        if (isIndex)
+            return String.class;
+        return loop.getLoopedExpression().getReturnType();
+    }
+    
+    @Override
+    public String toString(TriggerContext ctx, boolean debug) {
+        if (loop == null)
+            return "loop-" + loopedString;
+        if (isVariableLoop) {
+            var variable = (Variable<?>) loop.getLoopedExpression();
+            return isIndex ? 
+                "\"" + variable.getIndex(ctx) + "\"" : 
+                variable.toString(ctx, debug);
+        }
+        return loop.getLoopedExpression().toString(ctx, debug);
+    }
+}
+```
+
+## See Also
+
+- [Effect](/api/effects) - For executable statements
+- [Statement](/api/statements) - Base class for runnable code
+- [CodeSection](/api/code-sections) - For sections containing code blocks

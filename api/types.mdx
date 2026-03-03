@@ -1,0 +1,554 @@
+---
+title: Type System
+description: Complete reference for the Skript Parser type system architecture
+---
+
+The type system in Skript Parser provides a robust framework for defining, managing, and working with types. It includes support for plural forms, literal parsing, type conversion, and change operations.
+
+## Type Class
+
+The `Type<T>` class is the basic definition of a type in Skript Parser.
+
+### Constructor
+
+```java
+public Type(
+    Class<T> typeClass,
+    String baseName,
+    String pattern,
+    @Nullable Function<String, ? extends T> literalParser,
+    Function<? super T, String> toStringFunction,
+    @Nullable Function<? super T, String> toVariableNameFunction,
+    @Nullable Changer<? super T> defaultChanger,
+    @Nullable Arithmetic<T, ?> arithmetic,
+    Documentation documentation,
+    @Nullable TypeSerializer<T> serializer,
+    @Nullable Supplier<Iterator<T>> supplier
+)
+```
+
+<ParamField path="typeClass" type="Class<T>" required>
+  The Java class this type represents
+</ParamField>
+
+<ParamField path="baseName" type="String" required>
+  The basic name to represent this type with. Should be a lowercase version of the Java class name.
+</ParamField>
+
+<ParamField path="pattern" type="String" required>
+  The pattern for plural forms in Skript aliases plural format:
+  - `fish` → "fish" (invariant)
+  - `dog|s` → "dog" and "dogs"
+  - `part|y|ies` → "party" and "parties" (irregular plural)
+</ParamField>
+
+<ParamField path="literalParser" type="Function<String, ? extends T>">
+  Function that parses string literals into instances of this type. If the parser throws an exception, it will be caught and the type will be ignored.
+</ParamField>
+
+<ParamField path="toStringFunction" type="Function<? super T, String>">
+  Function that converts an object of type T to a String. Defaults to `Objects::toString`.
+</ParamField>
+
+<ParamField path="toVariableNameFunction" type="Function<? super T, String>">
+  Function that converts an object to a variable name representation.
+</ParamField>
+
+<ParamField path="defaultChanger" type="Changer<? super T>">
+  The default changer for this type, defining how values can be modified.
+</ParamField>
+
+<ParamField path="arithmetic" type="Arithmetic<T, ?>">
+  Arithmetic operations support for this type.
+</ParamField>
+
+<ParamField path="documentation" type="Documentation" required>
+  Documentation information for this type.
+</ParamField>
+
+<ParamField path="serializer" type="TypeSerializer<T>">
+  Serializer for persisting values of this type.
+</ParamField>
+
+<ParamField path="supplier" type="Supplier<Iterator<T>>">
+  Supplier that provides an iterator over all possible values of this type.
+</ParamField>
+
+### Methods
+
+#### getTypeClass
+
+```java
+public Class<T> getTypeClass()
+```
+
+Returns the Java class this type represents.
+
+#### getBaseName
+
+```java
+public String getBaseName()
+```
+
+Returns the base name of this type.
+
+#### getPluralForms
+
+```java
+public String[] getPluralForms()
+```
+
+Returns both the singular and plural forms of this type.
+
+#### getPluralForm
+
+```java
+public String getPluralForm()
+```
+
+Returns strictly the plural form of the type, not including the regular form.
+
+#### isPlural
+
+```java
+public boolean isPlural(String input)
+```
+
+Checks if the given string matches the plural form of this type.
+
+#### getLiteralParser
+
+```java
+public Optional<Function<String, ? extends T>> getLiteralParser()
+```
+
+Returns the literal parser function if one exists.
+
+#### getDefaultChanger
+
+```java
+public Optional<? extends Changer<? super T>> getDefaultChanger()
+```
+
+Returns the default changer for this type if one exists.
+
+#### getArithmetic
+
+```java
+public Optional<? extends Arithmetic<T, ?>> getArithmetic()
+```
+
+Returns the arithmetic operations for this type if supported.
+
+#### withIndefiniteArticle
+
+```java
+public String withIndefiniteArticle(boolean plural)
+```
+
+Adds a proper English indefinite article ("a" or "an") to this type and applies the correct form.
+
+<ParamField path="plural" type="boolean" required>
+  Whether to use the plural form
+</ParamField>
+
+<ResponseField name="return" type="String">
+  The type name with indefinite article (e.g., "a number", "an object", "numbers")
+</ResponseField>
+
+## TypeManager
+
+Manages the registration and usage of all types in the system.
+
+### Constants
+
+```java
+public static final String NULL_REPRESENTATION = "<none>";
+public static final String EMPTY_REPRESENTATION = "<empty>";
+```
+
+### Methods
+
+#### getByExactName
+
+```java
+public static Optional<? extends Type<?>> getByExactName(String name)
+```
+
+Gets a Type by its exact base name.
+
+<ParamField path="name" type="String" required>
+  The exact base name of the type
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends Type<?>>">
+  The corresponding Type, or empty if nothing matched
+</ResponseField>
+
+#### getByName
+
+```java
+public static Optional<? extends Type<?>> getByName(String name)
+```
+
+Gets a Type using its plural forms, matching any alternate and/or plural form.
+
+<ParamField path="name" type="String" required>
+  The name to match (can be singular or plural)
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends Type<?>>">
+  The matching Type, or empty if nothing matched
+</ResponseField>
+
+#### getByClassExact
+
+```java
+public static <T> Optional<? extends Type<T>> getByClassExact(Class<T> c)
+```
+
+Gets a Type from its associated Java Class with exact matching.
+
+<ParamField path="c" type="Class<T>" required>
+  The class to get the Type from
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends Type<T>>">
+  The associated Type, or empty if none found
+</ResponseField>
+
+#### getByClass
+
+```java
+public static <T> Optional<? extends Type<? super T>> getByClass(Class<T> c)
+```
+
+Gets a Type from its associated Class, checking superclasses and interfaces.
+
+<ParamField path="c" type="Class<T>" required>
+  The class to get the Type from
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends Type<? super T>>">
+  The associated Type, or empty if none found
+</ResponseField>
+
+#### getPatternType
+
+```java
+public static Optional<PatternType<?>> getPatternType(String name)
+```
+
+Gets a PatternType from a name, determining the number (single/plural) from the input.
+
+<ParamField path="name" type="String" required>
+  The name input (singular or plural)
+</ParamField>
+
+<ResponseField name="return" type="Optional<PatternType<?>>">
+  A corresponding PatternType with the correct singular/plural flag
+</ResponseField>
+
+#### toString
+
+```java
+public static String toString(Object[] objects)
+public static String toString(Object[] objects, StringMode mode)
+```
+
+Converts an array of objects to a human-readable string representation.
+
+<ParamField path="objects" type="Object[]" required>
+  The objects to convert
+</ParamField>
+
+<ParamField path="mode" type="StringMode">
+  Either `STRING` (default) or `VARIABLE` mode for variable name formatting
+</ParamField>
+
+<ResponseField name="return" type="String">
+  Formatted string like "value1, value2 and value3", or `<empty>` if the array is empty
+</ResponseField>
+
+#### register
+
+```java
+public static void register(SkriptRegistration reg)
+```
+
+Registers all types from a SkriptRegistration.
+
+<ParamField path="reg" type="SkriptRegistration" required>
+  The registration containing types to register
+</ParamField>
+
+## PatternType
+
+A type used in a pattern that groups a Type and a number (single or plural) together.
+
+```java
+public final class PatternType<T> {
+    public PatternType(Type<T> type, boolean single)
+    public Type<T> getType()
+    public boolean isSingle()
+}
+```
+
+<ParamField path="type" type="Type<T>" required>
+  The underlying type
+</ParamField>
+
+<ParamField path="single" type="boolean" required>
+  Whether this represents the singular form (true) or plural form (false)
+</ParamField>
+
+## ChangeMode
+
+An enum representing how an expression can be changed.
+
+```java
+public enum ChangeMode {
+    SET,           // Expression is being set to one or more values
+    ADD,           // Values are being added to expression
+    REMOVE,        // Values are being removed from expression
+    DELETE,        // Expression is being deleted
+    RESET,         // Expression is being reset to default value
+    REMOVE_ALL     // All matching values are being removed
+}
+```
+
+### Values
+
+<ResponseField name="SET" type="ChangeMode">
+  Indicates that an expression is being set to one or more values
+</ResponseField>
+
+<ResponseField name="ADD" type="ChangeMode">
+  Indicates that one or more values are being added to an expression
+</ResponseField>
+
+<ResponseField name="REMOVE" type="ChangeMode">
+  Indicates that one or more values are being removed from an expression
+</ResponseField>
+
+<ResponseField name="DELETE" type="ChangeMode">
+  Indicates that an expression is being deleted
+</ResponseField>
+
+<ResponseField name="RESET" type="ChangeMode">
+  Indicates that an expression is being reset to a default value. This is NOT equivalent to DELETE.
+</ResponseField>
+
+<ResponseField name="REMOVE_ALL" type="ChangeMode">
+  Indicates that all values matching the given expression are being removed. This is NOT equivalent to DELETE. For example, remove all values of a specific type from a list.
+</ResponseField>
+
+## Changer Interface
+
+An interface for anything that can be changed.
+
+```java
+public interface Changer<T> {
+    Class<?>[] acceptsChange(ChangeMode mode);
+    void change(T[] toChange, Object[] changeWith, ChangeMode mode);
+}
+```
+
+### Methods
+
+#### acceptsChange
+
+```java
+Class<?>[] acceptsChange(ChangeMode mode)
+```
+
+Returns the classes of objects that can be used to change this object with the given mode.
+
+<ParamField path="mode" type="ChangeMode" required>
+  The change mode to check
+</ParamField>
+
+<ResponseField name="return" type="Class<?>[]">
+  Array of accepted classes for this change mode, or null/empty if not supported
+</ResponseField>
+
+#### change
+
+```java
+void change(T[] toChange, Object[] changeWith, ChangeMode mode)
+```
+
+Changes the implementing object.
+
+<ParamField path="toChange" type="T[]" required>
+  The current values to be changed
+</ParamField>
+
+<ParamField path="changeWith" type="Object[]" required>
+  The values to change with
+</ParamField>
+
+<ParamField path="mode" type="ChangeMode" required>
+  The change mode to apply
+</ParamField>
+
+## Arithmetic Interface
+
+An interface describing arithmetic operations between two types.
+
+```java
+public interface Arithmetic<A, R> {
+    R difference(A first, A second);
+    A add(A value, R difference);
+    A subtract(A value, R difference);
+    Class<? extends R> getRelativeType();
+}
+```
+
+### Methods
+
+#### difference
+
+```java
+R difference(A first, A second)
+```
+
+Calculates the difference between two values.
+
+<ParamField path="first" type="A" required>
+  The first value
+</ParamField>
+
+<ParamField path="second" type="A" required>
+  The second value
+</ParamField>
+
+<ResponseField name="return" type="R">
+  The difference between the values
+</ResponseField>
+
+#### add
+
+```java
+A add(A value, R difference)
+```
+
+Adds a difference to a value.
+
+<ParamField path="value" type="A" required>
+  The base value
+</ParamField>
+
+<ParamField path="difference" type="R" required>
+  The difference to add
+</ParamField>
+
+<ResponseField name="return" type="A">
+  The result of the addition
+</ResponseField>
+
+#### subtract
+
+```java
+A subtract(A value, R difference)
+```
+
+Subtracts a difference from a value.
+
+<ParamField path="value" type="A" required>
+  The base value
+</ParamField>
+
+<ParamField path="difference" type="R" required>
+  The difference to subtract
+</ParamField>
+
+<ResponseField name="return" type="A">
+  The result of the subtraction
+</ResponseField>
+
+#### getRelativeType
+
+```java
+Class<? extends R> getRelativeType()
+```
+
+Returns the class representing the relative/difference type.
+
+## Example Usage
+
+### Registering a Custom Type
+
+```java
+// Define a simple type with plural forms
+Type<CustomObject> customType = new Type<>(
+    CustomObject.class,
+    "customobject",
+    "custom object|s",
+    str -> Optional.of(new CustomObject(str)),
+    Documentation.fromString("A custom object type"),
+    null
+);
+
+// Register it
+SkriptRegistration registration = new SkriptRegistration();
+registration.addType(customType);
+TypeManager.register(registration);
+```
+
+### Using TypeManager
+
+```java
+// Look up a type by name
+Optional<? extends Type<?>> numberType = TypeManager.getByName("number");
+
+// Look up by class
+Optional<? extends Type<String>> stringType = TypeManager.getByClassExact(String.class);
+
+// Get a pattern type (with singular/plural info)
+Optional<PatternType<?>> patternType = TypeManager.getPatternType("numbers");
+if (patternType.isPresent()) {
+    boolean isPlural = !patternType.get().isSingle(); // true for "numbers"
+}
+
+// Convert objects to string
+Object[] values = {1, 2, 3};
+String result = TypeManager.toString(values); // "1, 2 and 3"
+```
+
+### Implementing a Changer
+
+```java
+public class CustomChanger implements Changer<CustomObject> {
+    @Override
+    public Class<?>[] acceptsChange(ChangeMode mode) {
+        return switch (mode) {
+            case SET -> new Class[]{String.class};
+            case ADD -> new Class[]{Integer.class};
+            case DELETE, RESET -> new Class[0];
+            default -> null;
+        };
+    }
+
+    @Override
+    public void change(CustomObject[] toChange, Object[] changeWith, ChangeMode mode) {
+        switch (mode) {
+            case SET -> {
+                for (CustomObject obj : toChange) {
+                    obj.setValue((String) changeWith[0]);
+                }
+            }
+            case ADD -> {
+                for (CustomObject obj : toChange) {
+                    obj.increment((Integer) changeWith[0]);
+                }
+            }
+            case DELETE -> {
+                for (CustomObject obj : toChange) {
+                    obj.clear();
+                }
+            }
+        }
+    }
+}
+```

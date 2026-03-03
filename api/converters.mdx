@@ -1,0 +1,586 @@
+---
+title: Type Converters
+description: Complete reference for the Skript Parser type conversion system
+---
+
+The type conversion system in Skript Parser provides automatic conversion between different types. It supports direct conversions, chained conversions, and automatic creation of missing converter chains.
+
+## Converters Class
+
+The main class for managing type conversions.
+
+```java
+public abstract class Converters
+```
+
+### Constants
+
+```java
+public static final int ALL_CHAINING = 0;
+public static final int NO_LEFT_CHAINING = 1;
+public static final int NO_RIGHT_CHAINING = 2;
+public static final int NO_CHAINING = NO_LEFT_CHAINING | NO_RIGHT_CHAINING;
+```
+
+<ResponseField name="ALL_CHAINING" type="int">
+  Flag declaring a converter may freely be part of a ChainedConverter
+</ResponseField>
+
+<ResponseField name="NO_LEFT_CHAINING" type="int">
+  Flag declaring a converter may only be the first part of a ChainedConverter
+</ResponseField>
+
+<ResponseField name="NO_RIGHT_CHAINING" type="int">
+  Flag declaring a converter may only be the second part of a ChainedConverter
+</ResponseField>
+
+<ResponseField name="NO_CHAINING" type="int">
+  Flag declaring a converter may not be part of a ChainedConverter at all
+</ResponseField>
+
+### Methods
+
+#### registerConverter
+
+```java
+public static <F, T> void registerConverter(
+    Class<F> from,
+    Class<T> to,
+    Function<? super F, Optional<? extends T>> converter
+)
+
+public static <F, T> void registerConverter(
+    Class<F> from,
+    Class<T> to,
+    Function<? super F, Optional<? extends T>> converter,
+    int options
+)
+```
+
+Registers a new type converter.
+
+<ParamField path="from" type="Class<F>" required>
+  The class to convert from
+</ParamField>
+
+<ParamField path="to" type="Class<T>" required>
+  The class to convert to
+</ParamField>
+
+<ParamField path="converter" type="Function<? super F, Optional<? extends T>>" required>
+  The converter function that takes an instance of F and returns an Optional of T
+</ParamField>
+
+<ParamField path="options" type="int">
+  Chaining options: `ALL_CHAINING`, `NO_LEFT_CHAINING`, `NO_RIGHT_CHAINING`, or `NO_CHAINING`
+</ParamField>
+
+#### registerConverters
+
+```java
+public static <F, T> void registerConverters(SkriptRegistration registration)
+```
+
+Registers all converters from a SkriptRegistration.
+
+<ParamField path="registration" type="SkriptRegistration" required>
+  The registration containing converters to register
+</ParamField>
+
+#### convert
+
+```java
+public static <F, T> Optional<? extends T> convert(@Nullable F o, Class<T> to)
+
+public static <F, T> Optional<? extends T> convert(
+    @Nullable F o,
+    Class<? extends T>[] to
+)
+```
+
+Converts a value to the desired type.
+
+<ParamField path="o" type="F" required>
+  The value to convert (can be null)
+</ParamField>
+
+<ParamField path="to" type="Class<T> or Class<? extends T>[]" required>
+  The class or classes to convert to
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends T>">
+  The converted value, or empty if no converter exists or conversion failed
+</ResponseField>
+
+<Note>
+If you need to convert multiple values of the same type, use `getConverter()` instead for better performance.
+</Note>
+
+#### convertArray
+
+```java
+public static <T> Optional<T[]> convertArray(@Nullable Object[] o, Class<T> to)
+
+public static <T> T[] convertArray(
+    @Nullable Object[] o,
+    Class<? extends T> to,
+    Class<T> superType
+)
+```
+
+Converts all entries in an array to the desired type.
+
+<ParamField path="o" type="Object[]" required>
+  The values to convert
+</ParamField>
+
+<ParamField path="to" type="Class<T>" required>
+  The class to convert to
+</ParamField>
+
+<ParamField path="superType" type="Class<T>">
+  The component type of the returned array
+</ParamField>
+
+<ResponseField name="return" type="T[]">
+  An array without null elements (elements that failed conversion are omitted)
+</ResponseField>
+
+#### convert (with converter)
+
+```java
+public static <F, T> T[] convert(
+    F[] from,
+    Class<T> to,
+    Function<? super F, Optional<? extends T>> converter
+)
+```
+
+Converts an array using a specific converter function.
+
+<ParamField path="from" type="F[]" required>
+  The values to convert
+</ParamField>
+
+<ParamField path="to" type="Class<T>" required>
+  The class to convert to
+</ParamField>
+
+<ParamField path="converter" type="Function<? super F, Optional<? extends T>>" required>
+  The converter function to use
+</ParamField>
+
+<ResponseField name="return" type="T[]">
+  The converted array (null elements are omitted)
+</ResponseField>
+
+#### getConverter
+
+```java
+public static <F, T> Optional<? extends Function<? super F, Optional<? extends T>>> getConverter(
+    Class<F> from,
+    Class<T> to
+)
+```
+
+Gets a converter function between two types.
+
+<ParamField path="from" type="Class<F>" required>
+  The class to convert from
+</ParamField>
+
+<ParamField path="to" type="Class<T>" required>
+  The class to convert to
+</ParamField>
+
+<ResponseField name="return" type="Optional<Function<? super F, Optional<? extends T>>>">
+  The converter function, or empty if none exists
+</ResponseField>
+
+#### converterExists
+
+```java
+public static boolean converterExists(Class<?> from, Class<?> to)
+
+public static boolean converterExists(Class<?> from, Class<?>... to)
+```
+
+Tests whether a converter between the given classes exists.
+
+<ParamField path="from" type="Class<?>" required>
+  The class to convert from
+</ParamField>
+
+<ParamField path="to" type="Class<?> or Class<?>..." required>
+  The class(es) to convert to
+</ParamField>
+
+<ResponseField name="return" type="boolean">
+  True if a converter exists, false otherwise
+</ResponseField>
+
+#### createMissingConverters
+
+```java
+public static void createMissingConverters()
+```
+
+Automatically creates all possible ChainedConverters by combining existing converters.
+
+<Note>
+This method should be called after all converters are registered to create converter chains automatically.
+</Note>
+
+## ConverterInfo
+
+A record containing information about a converter.
+
+```java
+public record ConverterInfo<F, T>(
+    Class<F> from,
+    Class<T> to,
+    Function<? super F, Optional<? extends T>> converter,
+    int flags
+)
+```
+
+<ParamField path="from" type="Class<F>" required>
+  The source type
+</ParamField>
+
+<ParamField path="to" type="Class<T>" required>
+  The target type
+</ParamField>
+
+<ParamField path="converter" type="Function<? super F, Optional<? extends T>>" required>
+  The converter function
+</ParamField>
+
+<ParamField path="flags" type="int" required>
+  Chaining flags (ALL_CHAINING, NO_LEFT_CHAINING, NO_RIGHT_CHAINING, or NO_CHAINING)
+</ParamField>
+
+### Constructor
+
+```java
+public ConverterInfo(
+    Class<F> from,
+    Class<T> to,
+    Function<? super F, Optional<? extends T>> converter
+)
+```
+
+Creates a ConverterInfo with `ALL_CHAINING` flags.
+
+## ChainedConverter
+
+Automatically created converter that chains two converters together.
+
+```java
+public final class ChainedConverter<F, M, T> implements Function<F, Optional<? extends T>> {
+    public ChainedConverter(
+        Function<? super F, Optional<? extends M>> first,
+        Function<? super M, Optional<? extends T>> second
+    )
+}
+```
+
+<ParamField path="F" type="type parameter">
+  The source type (from)
+</ParamField>
+
+<ParamField path="M" type="type parameter">
+  The middle type (intermediate conversion result)
+</ParamField>
+
+<ParamField path="T" type="type parameter">
+  The target type (to)
+</ParamField>
+
+<ParamField path="first" type="Function<? super F, Optional<? extends M>>" required>
+  The first converter (F → M)
+</ParamField>
+
+<ParamField path="second" type="Function<? super M, Optional<? extends T>>" required>
+  The second converter (M → T)
+</ParamField>
+
+### How It Works
+
+If you have:
+- Converter A: `String → Integer`
+- Converter B: `Integer → Double`
+
+A ChainedConverter automatically creates: `String → Double`
+
+## ConverterUtils
+
+Utility functions for working with converters.
+
+```java
+public class ConverterUtils
+```
+
+### Methods
+
+#### createInstanceofConverter
+
+```java
+public static <F, T> Function<?, Optional<? extends T>> createInstanceofConverter(
+    ConverterInfo<F, T> conv
+)
+
+public static <F, T> Function<?, Optional<? extends T>> createInstanceofConverter(
+    Class<F> from,
+    Function<? super F, Optional<? extends T>> conv
+)
+
+public static <F, T> Function<? super F, Optional<? extends T>> createInstanceofConverter(
+    Function<? super F, Optional<? extends T>> conv,
+    Class<T> to
+)
+```
+
+Creates a converter that checks instanceof before converting.
+
+#### createDoubleInstanceofConverter
+
+```java
+public static <F, T> Function<?, Optional<? extends T>> createDoubleInstanceofConverter(
+    ConverterInfo<F, ?> conv,
+    Class<T> to
+)
+
+public static <F, T> Function<?, Optional<? extends T>> createDoubleInstanceofConverter(
+    Class<F> from,
+    Function<? super F, Optional<?>> conv,
+    Class<T> to
+)
+```
+
+Creates a converter that checks instanceof for both input and output.
+
+## Example Usage
+
+### Registering a Simple Converter
+
+```java
+// Convert String to Integer
+Converters.registerConverter(
+    String.class,
+    Integer.class,
+    str -> {
+        try {
+            return Optional.of(Integer.parseInt(str));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+);
+```
+
+### Registering with Chaining Flags
+
+```java
+// This converter cannot be chained
+Converters.registerConverter(
+    CustomType.class,
+    String.class,
+    obj -> Optional.of(obj.toString()),
+    Converters.NO_CHAINING
+);
+
+// This converter can only be first in a chain
+Converters.registerConverter(
+    String.class,
+    CustomType.class,
+    str -> Optional.of(new CustomType(str)),
+    Converters.NO_RIGHT_CHAINING
+);
+```
+
+### Using Converters
+
+```java
+// Convert a single value
+String str = "42";
+Optional<Integer> num = Converters.convert(str, Integer.class);
+if (num.isPresent()) {
+    System.out.println("Converted: " + num.get());
+}
+
+// Convert to multiple possible types
+Object value = "test";
+Optional<?> result = Converters.convert(
+    value,
+    new Class[]{Integer.class, Boolean.class, String.class}
+);
+
+// Convert an array
+String[] strings = {"1", "2", "3"};
+Optional<Integer[]> numbers = Converters.convertArray(strings, Integer.class);
+```
+
+### Using a Specific Converter
+
+```java
+// Get the converter once for better performance
+Optional<? extends Function<? super String, Optional<? extends Integer>>> converter =
+    Converters.getConverter(String.class, Integer.class);
+
+if (converter.isPresent()) {
+    String[] inputs = {"1", "2", "3", "invalid", "5"};
+    
+    for (String input : inputs) {
+        Optional<? extends Integer> result = converter.get().apply(input);
+        result.ifPresent(num -> System.out.println("Converted: " + num));
+    }
+}
+```
+
+### Batch Registration
+
+```java
+SkriptRegistration registration = new SkriptRegistration();
+
+// Register multiple converters
+registration.addConverter(new ConverterInfo<>(
+    String.class,
+    Integer.class,
+    str -> {
+        try {
+            return Optional.of(Integer.parseInt(str));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+));
+
+registration.addConverter(new ConverterInfo<>(
+    Integer.class,
+    String.class,
+    Object::toString
+));
+
+// Register all at once
+Converters.registerConverters(registration);
+
+// Create chained converters
+Converters.createMissingConverters();
+```
+
+### Creating Automatic Converter Chains
+
+```java
+// Register individual converters
+Converters.registerConverter(String.class, Integer.class, str -> {
+    try {
+        return Optional.of(Integer.parseInt(str));
+    } catch (NumberFormatException e) {
+        return Optional.empty();
+    }
+});
+
+Converters.registerConverter(Integer.class, Double.class,
+    i -> Optional.of(i.doubleValue())
+);
+
+Converters.registerConverter(Double.class, String.class,
+    d -> Optional.of(String.format("%.2f", d))
+);
+
+// Automatically create chains:
+// String → Integer → Double
+// Integer → Double → String
+// String → Integer → Double → String (full chain)
+Converters.createMissingConverters();
+
+// Now you can convert String directly to Double
+Optional<Double> result = Converters.convert("42", Double.class);
+// This uses the chained converter: String → Integer → Double
+```
+
+## Best Practices
+
+### Return Optional.empty() for Failed Conversions
+
+Always return `Optional.empty()` instead of throwing exceptions:
+
+```java
+// Good
+Converters.registerConverter(String.class, Integer.class, str -> {
+    try {
+        return Optional.of(Integer.parseInt(str));
+    } catch (NumberFormatException e) {
+        return Optional.empty();
+    }
+});
+
+// Avoid
+Converters.registerConverter(String.class, Integer.class, str -> {
+    return Optional.of(Integer.parseInt(str)); // Throws exception!
+});
+```
+
+### Use Chaining Flags Appropriately
+
+Set chaining flags based on the converter's behavior:
+
+```java
+// Lossy conversion - prevent further chaining
+Converters.registerConverter(
+    Double.class,
+    Integer.class,
+    d -> Optional.of(d.intValue()),
+    Converters.NO_RIGHT_CHAINING
+);
+
+// Expensive conversion - prevent chaining
+Converters.registerConverter(
+    String.class,
+    ComplexObject.class,
+    str -> parseComplex(str),
+    Converters.NO_CHAINING
+);
+```
+
+### Check if Converter Exists
+
+Before attempting conversion, check if a converter exists:
+
+```java
+if (Converters.converterExists(String.class, CustomType.class)) {
+    Optional<CustomType> result = Converters.convert("value", CustomType.class);
+}
+```
+
+### Reuse Converters for Performance
+
+When converting many values, get the converter once:
+
+```java
+// Efficient
+var converter = Converters.getConverter(String.class, Integer.class);
+for (String str : manyStrings) {
+    converter.flatMap(c -> c.apply(str)).ifPresent(this::process);
+}
+
+// Less efficient
+for (String str : manyStrings) {
+    Converters.convert(str, Integer.class).ifPresent(this::process);
+}
+```
+
+### Call createMissingConverters() After Registration
+
+Always call this after registering all converters:
+
+```java
+// Register all converters
+Converters.registerConverter(A.class, B.class, converterAB);
+Converters.registerConverter(B.class, C.class, converterBC);
+Converters.registerConverter(C.class, D.class, converterCD);
+
+// Create chains (A→B→C, B→C→D, A→B→C→D, etc.)
+Converters.createMissingConverters();
+```

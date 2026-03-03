@@ -1,0 +1,240 @@
+---
+title: 'Parser'
+description: 'Main entry point for the Skript Parser library'
+---
+
+## Overview
+
+The `Parser` class is the main entry point for running Skript scripts. It handles initialization of the parser, loading syntax elements and addons, and executing scripts with logging support.
+
+**Package:** `io.github.syst3ms.skriptparser`
+
+## Usage
+
+The Parser class can be used in two modes:
+1. **Standalone mode** - Runs from command line with addon loading
+2. **Library mode** - Embedded in Java applications without addon support
+
+### Standalone Example
+
+```java
+// Command line usage
+java -jar skript-parser.jar script.sk --debug
+```
+
+### Library Example
+
+```java
+// Initialize the parser as a library
+String[] mainPackages = {"com.example.myaddon"};
+String[] subPackages = {"expressions", "effects", "events"};
+String[] programArgs = {};
+
+// Initialize without addon loading (library mode)
+Parser.init(mainPackages, subPackages, programArgs, false);
+
+// Run a script
+Parser.run("path/to/script.sk", false, true);
+```
+
+## Static Fields
+
+<ParamField path="CONSOLE_FORMAT" type="String">
+  Format string for console output: `"[%tT] %s: %s%n"`
+  
+  Used to format log messages with timestamp, log type, and message content.
+</ParamField>
+
+## Methods
+
+### main
+
+```java
+public static void main(String[] args)
+```
+
+Main entry point when running the parser from command line.
+
+<ParamField path="args" type="String[]">
+  Command line arguments. The first non-flag argument is the script name, remaining arguments are passed to the script.
+  
+  Supported flags:
+  - `--debug` - Enable debug logging
+  - `--no-tips` or `--nt` - Disable tips in log output
+</ParamField>
+
+**Example:**
+```bash
+java -jar skript-parser.jar script.sk --debug arg1 arg2
+```
+
+### init
+
+```java
+public static void init(
+    String[] mainPackages,
+    String[] subPackages,
+    String[] programArgs,
+    boolean standalone
+)
+```
+
+Initializes the parser and loads syntax elements.
+
+<ParamField path="mainPackages" type="String[]">
+  Packages inside which all subpackages containing classes to load may be present. 
+  
+  Skript's own main package (`io.github.syst3ms.skriptparser`) is automatically included.
+</ParamField>
+
+<ParamField path="subPackages" type="String[]">
+  The subpackages inside which classes to load may be present.
+  
+  Skript's default subpackages are automatically included:
+  - `expressions`
+  - `effects`
+  - `event`
+  - `lang`
+  - `sections`
+  - `structures`
+  - `tags`
+</ParamField>
+
+<ParamField path="programArgs" type="String[]">
+  Program arguments to pass to the Skript instance (typically from command line).
+</ParamField>
+
+<ParamField path="standalone" type="boolean">
+  Whether the parser should try to load addons from the `addons/` folder.
+  
+  - `true` - Standalone mode: loads JAR files from `addons/` directory
+  - `false` - Library mode: no addon loading
+</ParamField>
+
+**Behavior:**
+1. Creates a new `Skript` instance with program arguments
+2. Registers default syntax elements via `DefaultRegistration.register()`
+3. Loads classes from specified packages and subpackages
+4. If standalone, loads addons from `addons/` folder (JAR files with Main-Class manifest attribute)
+5. Calls registration and prints any registration logs
+
+**Example:**
+```java
+Parser.init(
+    new String[]{"com.example.addon"},
+    new String[]{"expressions", "effects"},
+    new String[]{"--verbose"},
+    true  // Load addons
+);
+```
+
+### run
+
+```java
+public static void run(
+    String scriptName,
+    boolean debug,
+    boolean tipsEnabled
+)
+```
+
+Runs a Skript script file and prints parsing logs.
+
+<ParamField path="scriptName" type="String">
+  Path to the script file to load and execute.
+</ParamField>
+
+<ParamField path="debug" type="boolean">
+  Whether to enable debug logging during parsing.
+</ParamField>
+
+<ParamField path="tipsEnabled" type="boolean">
+  Whether to display helpful tips alongside error and warning messages.
+</ParamField>
+
+**Behavior:**
+1. Loads the script using `ScriptLoader.loadScript()`
+2. Prints parsing logs with colors and timestamps
+3. Calls `finishedLoading()` on all registered addons
+
+**Example:**
+```java
+Parser.run("scripts/example.sk", true, true);
+```
+
+### printLogs
+
+```java
+public static void printLogs(
+    List<LogEntry> logs,
+    Calendar time,
+    boolean tipsEnabled
+)
+```
+
+Prints log entries to console with color coding and timestamps.
+
+<ParamField path="logs" type="List<LogEntry>">
+  List of log entries to print.
+</ParamField>
+
+<ParamField path="time" type="Calendar">
+  Timestamp to display with each log entry.
+</ParamField>
+
+<ParamField path="tipsEnabled" type="boolean">
+  Whether to display tips associated with log entries.
+</ParamField>
+
+**Log Colors:**
+- `WARNING` - Yellow
+- `ERROR` - Red
+- `INFO` - Blue
+- `DEBUG` - Purple
+- Tips - Bright Blue
+
+### getMainRegistration
+
+```java
+public static SkriptRegistration getMainRegistration()
+```
+
+Returns the main `SkriptRegistration` instance used by the parser.
+
+<ResponseField name="return" type="SkriptRegistration">
+  The main registration instance containing all registered syntax elements.
+</ResponseField>
+
+## Addon Loading
+
+When `standalone` is `true` in the `init()` method, the Parser looks for addons in the `addons/` directory (relative to the parser JAR file).
+
+**Addon Requirements:**
+1. Must be a JAR file with `.jar` extension
+2. Must have a `Main-Class` attribute in the manifest
+3. The main class should have a static `initAddon()` method
+
+**Example Addon Structure:**
+```
+addons/
+  my-addon.jar
+    META-INF/
+      MANIFEST.MF  (Main-Class: com.example.MyAddon)
+    com/example/
+      MyAddon.class  (contains static initAddon() method)
+```
+
+## Log Format
+
+All logs are printed in the format:
+```
+[HH:MM:SS] LOG_TYPE: Message
+[HH:MM:SS] TIP: Helpful tip (if available and enabled)
+```
+
+**Example Output:**
+```
+[14:23:45] INFO: Registered 152 syntax elements
+[14:23:45] ERROR: Could not parse line 5: 'set player to "test"'
+[14:23:45] TIP: Did you mean to use 'set {player} to "test"'?
+```

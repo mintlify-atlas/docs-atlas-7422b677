@@ -1,0 +1,486 @@
+---
+title: Pattern System
+description: Complete reference for the Skript Parser pattern parsing and matching system
+---
+
+The pattern system in Skript Parser provides a powerful way to define and parse syntax patterns. It supports various element types including text, expressions, choices, optional groups, and regex.
+
+## PatternElement Interface
+
+The superclass of all elements of a pattern.
+
+```java
+public interface PatternElement {
+    int match(String s, int index, MatchContext context);
+}
+```
+
+### Methods
+
+#### match
+
+```java
+int match(String s, int index, MatchContext context)
+```
+
+Attempts to match the PatternElement to a string at a specified index.
+
+<ParamField path="s" type="String" required>
+  The string to match this PatternElement against
+</ParamField>
+
+<ParamField path="index" type="int" required>
+  The index of the string at which this PatternElement should be matched
+</ParamField>
+
+<ParamField path="context" type="MatchContext" required>
+  The matching context containing state information
+</ParamField>
+
+<ResponseField name="return" type="int">
+  The index at which matching should continue if successful, otherwise -1
+</ResponseField>
+
+#### flatten
+
+```java
+static List<PatternElement> flatten(PatternElement element)
+```
+
+Flattens a PatternElement, returning a list of elements.
+
+#### getKeywords
+
+```java
+static List<String> getKeywords(PatternElement element)
+```
+
+Returns all text components that will always be present, no matter how the pattern is used.
+
+## TextElement
+
+Represents literal text inside a pattern. Matching is case and whitespace insensitive.
+
+```java
+public class TextElement implements PatternElement {
+    public TextElement(String text)
+    public String getText()
+}
+```
+
+<ParamField path="text" type="String" required>
+  The literal text to match
+</ParamField>
+
+### Matching Behavior
+
+- Case insensitive: `"hello"` matches `"HELLO"`, `"Hello"`, etc.
+- Whitespace insensitive: Leading and trailing whitespace is ignored
+- Empty text always matches at the current index
+
+### Example
+
+```java
+TextElement element = new TextElement("set");
+// Matches: "set", "SET", "  set  ", etc.
+```
+
+## ExpressionElement
+
+A variable/expression declared in syntax using `%type%`.
+
+```java
+public class ExpressionElement implements PatternElement {
+    public ExpressionElement(
+        List<PatternType<?>> types,
+        Acceptance acceptance,
+        boolean nullable,
+        boolean acceptsConditional
+    )
+}
+```
+
+<ParamField path="types" type="List<PatternType<?>>" required>
+  List of accepted types for this expression
+</ParamField>
+
+<ParamField path="acceptance" type="Acceptance" required>
+  What type of values this expression accepts (literals, expressions, variables, or all)
+</ParamField>
+
+<ParamField path="nullable" type="boolean" required>
+  Whether the expression resorts to default expressions or defaults to null instead
+</ParamField>
+
+<ParamField path="acceptsConditional" type="boolean" required>
+  Whether the expression accepts conditional expressions
+</ParamField>
+
+### Acceptance Enum
+
+```java
+public enum Acceptance {
+    ALL,                // Accepts any expression or literal
+    EXPRESSIONS_ONLY,   // Only accepts expressions (no literals)
+    LITERALS_ONLY,      // Only accepts literals (no expressions)
+    VARIABLES_ONLY      // Only accepts variables
+}
+```
+
+### Pattern Syntax
+
+- `%type%` - Any expression of the given type
+- `%*type%` - Only literals of the given type
+- `%~type%` - Only expressions (no literals) of the given type
+- `%^type%` - Only variables of the given type
+- `%-type%` - Nullable expression (can be null)
+- `%=type%` - Accepts conditional expressions (for boolean types)
+- `%type1/type2%` - Accepts multiple types
+
+### Examples
+
+```java
+// Pattern: "set %object% to %*string%"
+// Matches: "set {var} to "hello""
+// %object% accepts any expression
+// %*string% only accepts string literals
+
+// Pattern: "delete %~player%"
+// Matches: "delete player"
+// %~player% only accepts player expressions, not literals
+
+// Pattern: "add %number% to %^numbers%"
+// Matches: "add 5 to {list::*}"
+// %^numbers% only accepts variables
+```
+
+## ChoiceGroup
+
+A group of multiple choices, each represented by a ChoiceElement.
+
+```java
+public class ChoiceGroup implements PatternElement {
+    public ChoiceGroup(List<ChoiceElement> choices)
+    public List<ChoiceElement> getChoices()
+}
+```
+
+<ParamField path="choices" type="List<ChoiceElement>" required>
+  The list of choice elements in this group
+</ParamField>
+
+### Matching Behavior
+
+Attempts to match each choice in order. Returns on the first successful match.
+
+### Pattern Syntax
+
+- `(choice1|choice2|choice3)` - One of the choices must match
+- `(mark1:choice1|mark2:choice2)` - Choices with parse marks
+
+### Examples
+
+```java
+// Pattern: "(add|give|grant) %item%"
+// Matches: "add diamond", "give gold", "grant sword"
+
+// Pattern: "(set:set|add:add|remove:remove) %object%"
+// Matches with parse marks for later identification
+```
+
+## ChoiceElement
+
+An element of a choice group, consisting of a PatternElement and an optional parse mark.
+
+```java
+public class ChoiceElement {
+    public ChoiceElement(PatternElement element, @Nullable String mark)
+    public PatternElement getElement()
+    public @Nullable String getMark()
+}
+```
+
+<ParamField path="element" type="PatternElement" required>
+  The pattern element for this choice
+</ParamField>
+
+<ParamField path="mark" type="String">
+  Parse mark for identifying which choice was matched (null for no mark)
+</ParamField>
+
+### Parse Marks
+
+Parse marks allow you to identify which choice was selected when a pattern matches.
+
+```java
+// Pattern: "(create:create|delete:delete) world %string%"
+// If "create" matches, mark is "create"
+// If "delete" matches, mark is "delete"
+```
+
+## OptionalGroup
+
+A group containing an optional PatternElement that can be omitted.
+
+```java
+public class OptionalGroup implements PatternElement {
+    public OptionalGroup(PatternElement element)
+    public PatternElement getElement()
+}
+```
+
+<ParamField path="element" type="PatternElement" required>
+  The optional pattern element
+</ParamField>
+
+### Matching Behavior
+
+Tries to match the contained element. If it fails, returns the current index (successful match with zero length).
+
+### Pattern Syntax
+
+- `[optional text]` - The text is optional
+- `[mark:optional text]` - Optional text with a parse mark
+
+### Examples
+
+```java
+// Pattern: "teleport [the] player [to] %location%"
+// Matches: "teleport player spawn"
+// Matches: "teleport the player to spawn"
+// Matches: "teleport the player spawn"
+```
+
+## RegexGroup
+
+A group containing a regex pattern.
+
+```java
+public class RegexGroup implements PatternElement {
+    public RegexGroup(Pattern pattern)
+    public Pattern getPattern()
+}
+```
+
+<ParamField path="pattern" type="Pattern" required>
+  The compiled Java regex pattern
+</ParamField>
+
+### Pattern Syntax
+
+- `<regex>` - Match using a regular expression
+
+### Examples
+
+```java
+// Pattern: "code: <[A-Z]{3}-\\d{4}>"
+// Matches: "code: ABC-1234"
+// Matches: "code: XYZ-9999"
+
+// Pattern: "ip: <\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}>"
+// Matches: "ip: 192.168.1.1"
+```
+
+## CompoundElement
+
+Multiple PatternElements put together in sequential order.
+
+```java
+public class CompoundElement implements PatternElement {
+    public CompoundElement(List<PatternElement> elements)
+    public List<PatternElement> getElements()
+}
+```
+
+<ParamField path="elements" type="List<PatternElement>" required>
+  The list of pattern elements to match in sequence
+</ParamField>
+
+### Matching Behavior
+
+Matches each element in order. All elements must match for the compound to match. Uses keyword optimization for faster matching.
+
+## PatternParser
+
+A class for parsing syntax patterns in string form into PatternElement objects.
+
+```java
+public class PatternParser {
+    public static Optional<? extends PatternElement> parsePattern(
+        String pattern,
+        SkriptLogger logger
+    )
+}
+```
+
+### parsePattern
+
+```java
+public static Optional<? extends PatternElement> parsePattern(
+    String pattern,
+    SkriptLogger logger
+)
+```
+
+Parses a pattern string and returns a PatternElement.
+
+<ParamField path="pattern" type="String" required>
+  The pattern string to parse
+</ParamField>
+
+<ParamField path="logger" type="SkriptLogger" required>
+  The logger for error reporting
+</ParamField>
+
+<ResponseField name="return" type="Optional<? extends PatternElement>">
+  The parsed PatternElement, or empty if parsing failed
+</ResponseField>
+
+## Pattern Syntax Reference
+
+### Basic Syntax
+
+| Syntax | Description | Example |
+|--------|-------------|--------|
+| `text` | Literal text | `set` |
+| `(a\|b\|c)` | Choice group | `(add\|remove)` |
+| `[optional]` | Optional group | `[the]` |
+| `%type%` | Expression | `%player%` |
+| `<regex>` | Regex pattern | `<\\d+>` |
+
+### Expression Modifiers
+
+| Syntax | Description | Example |
+|--------|-------------|--------|
+| `%type%` | Any expression | `%number%` |
+| `%*type%` | Literals only | `%*string%` |
+| `%~type%` | Expressions only | `%~player%` |
+| `%^type%` | Variables only | `%^objects%` |
+| `%-type%` | Nullable | `%-location%` |
+| `%=boolean%` | Accepts conditionals | `%=boolean%` |
+| `%type1/type2%` | Multiple types | `%number/string%` |
+
+### Advanced Features
+
+| Syntax | Description | Example |
+|--------|-------------|--------|
+| `(a:first\|b:second)` | Parse marks | `(set:set\|add:add)` |
+| `[mark:optional]` | Optional with mark | `[the:the]` |
+| `\\(` | Escape character | `\\[literal\\]` |
+
+### Escaping
+
+Use backslash `\` to escape special characters:
+
+```java
+// Literal brackets
+"\\[ and \\]"
+
+// Literal parentheses
+"\\( and \\)"
+
+// Literal percent
+"\\%"
+```
+
+## Example Patterns
+
+### Simple Pattern
+
+```java
+var pattern = "set %object% to %object%";
+var parsed = PatternParser.parsePattern(pattern, logger);
+// Matches: "set {var} to 5"
+```
+
+### Complex Pattern with Choices
+
+```java
+var pattern = "(add|give) %items% to [the] %player%";
+var parsed = PatternParser.parsePattern(pattern, logger);
+// Matches: "add diamond to player"
+// Matches: "give gold to the player"
+```
+
+### Pattern with Parse Marks
+
+```java
+var pattern = "(set:set|add:add|remove:remove) [the] {var}";
+var parsed = PatternParser.parsePattern(pattern, logger);
+// When "set" matches, context contains mark "set"
+// When "add" matches, context contains mark "add"
+```
+
+### Pattern with Regex
+
+```java
+var pattern = "register command /<[a-z]+>";
+var parsed = PatternParser.parsePattern(pattern, logger);
+// Matches: "register command /help"
+// Matches: "register command /spawn"
+```
+
+### Pattern with Multiple Types
+
+```java
+var pattern = "send %string/number% to %player%";
+var parsed = PatternParser.parsePattern(pattern, logger);
+// Matches: "send \"hello\" to player"
+// Matches: "send 42 to player"
+```
+
+## Best Practices
+
+### Use Specific Types
+
+Prefer specific types over generic ones for better type safety:
+
+```java
+// Good
+"teleport %player% to %location%"
+
+// Less specific
+"teleport %object% to %object%"
+```
+
+### Use Literals When Appropriate
+
+Use `%*type%` when you only want to accept literal values:
+
+```java
+// Only accepts literal strings, not variables
+"create file %*string%"
+```
+
+### Organize Choices Logically
+
+Put most common choices first for better performance:
+
+```java
+// Common operation first
+"(set|add|remove|delete) variable"
+```
+
+### Use Parse Marks for Variants
+
+Use parse marks to distinguish between similar patterns:
+
+```java
+// Different behaviors for each choice
+"(create:create|delete:delete|load:load) world %string%"
+```
+
+### Keep Patterns Simple
+
+Break complex patterns into multiple simpler patterns when possible:
+
+```java
+// Instead of one complex pattern
+"(create|make) [a] [new] (file:file|folder:folder) [named] %string%"
+
+// Consider multiple patterns
+"create [a] file %string%"
+"create [a] folder %string%"
+"make [a] file %string%"
+"make [a] folder %string%"
+```
