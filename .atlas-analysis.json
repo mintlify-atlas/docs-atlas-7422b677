@@ -1,0 +1,103 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Skript Parser",
+  "projectDescription": "A standalone and improved implementation of the Skript language for use outside of Minecraft servers",
+  "theme": "palm",
+  "primaryColor": "#5B67E8",
+  "lightColor": "#7B85FF",
+  "darkColor": "#4A52C7",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/language-overview",
+              "concepts/parsing",
+              "concepts/expressions-and-effects",
+              "concepts/events-and-triggers",
+              "concepts/patterns"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/creating-addons",
+              "guides/registering-syntax",
+              "guides/custom-types",
+              "guides/pattern-matching"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/parser",
+              "api/skript",
+              "api/trigger-context"
+            ]
+          },
+          {
+            "group": "Language Elements",
+            "pages": [
+              "api/expressions",
+              "api/effects",
+              "api/statements",
+              "api/code-sections"
+            ]
+          },
+          {
+            "group": "Registration",
+            "pages": [
+              "api/skript-addon",
+              "api/skript-registration",
+              "api/syntax-manager"
+            ]
+          },
+          {
+            "group": "Types & Patterns",
+            "pages": [
+              "api/types",
+              "api/patterns",
+              "api/converters"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Standalone Skript language parser",
+    "Extensible addon system",
+    "Pattern-based syntax matching",
+    "Type system with converters",
+    "Event and trigger handling",
+    "Custom expressions and effects"
+  ],
+  "publicApiSurface": [
+    "Parser.init()",
+    "Parser.run()",
+    "Expression<T>",
+    "Effect",
+    "Statement",
+    "SkriptAddon",
+    "SkriptRegistration",
+    "TriggerContext",
+    "SyntaxManager",
+    "PatternElement"
+  ]
+}
